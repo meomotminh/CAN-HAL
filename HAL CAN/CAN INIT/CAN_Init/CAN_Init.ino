@@ -7,12 +7,35 @@
 
 using namespace mbed;
 
+// Global Var
 can_t my_can;
 char counter = 0;
+CAN_Message msg;
+bool receiveMsg = false;
+bool Rx_Fifo0_full = false;
+uint32_t Rx_IT_Number = 0;
 
 HAL_StatusTypeDef hal_can_init(FDCAN_HandleTypeDef *hfdcan){
     return (HAL_FDCAN_Init(hfdcan));
 }
+
+void HAL_MspInit(void){
+  // set up priority grouping of the arm cortex processor
+  HAL_NVIC_SetPriorityGrouping(NVIC_PRIORITYGROUP_4);
+
+  // enable required system exceptions
+  SCB->SHCSR |= 0x7 << 16; // usage fault, memory fault and bus fault system exceptions
+
+  // configure the priority for the system exceptions
+  HAL_NVIC_SetPriority(MemoryManagement_IRQn, 0, 0);
+  HAL_NVIC_SetPriority(BusFault_IRQn, 0, 0);
+  HAL_NVIC_SetPriority(UsageFault_IRQn, 0, 0);
+
+  
+  //HAL_NVIC_SetPriority(FDCAN1_IT0_IRQn, 2, 0);
+  //HAL_NVIC_EnableIRQ(FDCAN1_IT0_IRQn);
+}
+
 
 void Set_Freq(can_t *obj, const can_pinmap_t *pinmap, int hz)
 {
@@ -46,7 +69,7 @@ void Set_Freq(can_t *obj, const can_pinmap_t *pinmap, int hz)
 
  
 
-    Serial.println("Before Set Frequency!\n");
+    //Serial.println("Before Set Frequency!\n");
     
     // Set Frequency
     RCC_PeriphCLKInitTypeDef RCC_PeriphClkInit;
@@ -54,7 +77,7 @@ void Set_Freq(can_t *obj, const can_pinmap_t *pinmap, int hz)
         RCC_PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_FDCAN1;
         RCC_PeriphClkInit.Fdcan1ClockSelection = RCC_FDCAN1CLKSOURCE_PLL1;
     #else 
-        Serial.println("Enter here!");
+        //Serial.println("Enter here!");
         RCC_PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_FDCAN;
         RCC_PeriphClkInit.FdcanClockSelection = RCC_FDCANCLKSOURCE_PLL;
     #endif
@@ -66,9 +89,9 @@ void Set_Freq(can_t *obj, const can_pinmap_t *pinmap, int hz)
     }
    #endif /* DUAL_CORE */
     if (HAL_RCCEx_PeriphCLKConfig(&RCC_PeriphClkInit) != HAL_OK) {
-        Serial.println("HAL_RCCEx_PeriphCLKConfig error\n");
+        //Serial.println("HAL_RCCEx_PeriphCLKConfig error\n");
     } else {
-      Serial.println("HAL_RCCEx_PeriphCLKConfig OK!");
+        //Serial.println("HAL_RCCEx_PeriphCLKConfig OK!");
     }
     #if defined(DUAL_CORE) && (TARGET_STM32H7)
     LL_HSEM_ReleaseLock(HSEM, CFG_HW_RCC_SEMID, HSEM_CR_COREID_CURRENT);
@@ -87,28 +110,28 @@ void Set_Freq(can_t *obj, const can_pinmap_t *pinmap, int hz)
 
     // Default Values
     obj->CanHandle.Instance = (FDCAN_GlobalTypeDef *)pinmap->peripheral;
-    //Serial.println(obj);
-     Serial.print("Instance:"); Serial.println(pinmap->peripheral);
+      //Serial.println(obj);
+      //Serial.print("Instance:"); Serial.println(pinmap->peripheral);
       
     
 
     #if (defined TARGET_STM32H7)
         PLL1_ClocksTypeDef pll1_clocks;
         HAL_RCCEx_GetPLL1ClockFreq(&pll1_clocks);
-        Serial.print("Hier Freq:"); Serial.println(pll1_clocks.PLL1_Q_Frequency);
+        //Serial.print("Hier Freq:"); Serial.println(pll1_clocks.PLL1_Q_Frequency);
         int ntq = pll1_clocks.PLL1_Q_Frequency / hz;  // 320
 
     #else
     #if (defined RCC_PERIPHCLK_FDCAN1)
-        Serial.println("Hier 2");  
+        //Serial.println("Hier 2");  
         int ntq = HAL_RCCEx_GetPeriphCLKFreq(RCC_PERIPHCLK_FDCAN1) / hz;
     #else
-        Serial.println("Hier 2");  
+        //Serial.println("Hier 2");  
         int ntq = HALL_RCCEx_GetPeriphCLKFreq(RCC_PERIPHCLK_FDCAN) / hz;
     #endif
     #endif
 
-    Serial.print("ntq:");  Serial.println(ntq);
+    //Serial.print("ntq:");  Serial.println(ntq);
 
     
 
@@ -116,7 +139,7 @@ void Set_Freq(can_t *obj, const can_pinmap_t *pinmap, int hz)
 while (!IS_FDCAN_NOMINAL_TSEG1(ntq / nominalPrescaler)){ // > 1 && < 256
   nominalPrescaler++;   // = 2
   if (!IS_FDCAN_NOMINAL_PRESCALER(nominalPrescaler)){
-    Serial.println("Could not determine nominalPrescaler. Bad clock value\n");
+    //Serial.println("Could not determine nominalPrescaler. Bad clock value\n");
   }
 }
   
@@ -126,7 +149,7 @@ while (!IS_FDCAN_NOMINAL_TSEG1(ntq / nominalPrescaler)){ // > 1 && < 256
   obj->CanHandle.Init.FrameFormat = FDCAN_FRAME_CLASSIC;
   obj->CanHandle.Init.Mode = FDCAN_MODE_NORMAL;
   obj->CanHandle.Init.AutoRetransmission = ENABLE;
-  obj->CanHandle.Init.TransmitPause = DISABLE;
+  obj->CanHandle.Init.TransmitPause = ENABLE;
   obj->CanHandle.Init.ProtocolException = DISABLE;
   
   obj->CanHandle.Init.NominalPrescaler = nominalPrescaler;
@@ -146,7 +169,7 @@ while (!IS_FDCAN_NOMINAL_TSEG1(ntq / nominalPrescaler)){ // > 1 && < 256
   obj->CanHandle.Init.StdFiltersNbr = 128;
   obj->CanHandle.Init.ExtFiltersNbr = 64;
   
-  obj->CanHandle.Init.RxFifo0ElmtsNbr = 8;
+  obj->CanHandle.Init.RxFifo0ElmtsNbr = 3;
   obj->CanHandle.Init.RxFifo1ElmtSize = FDCAN_DATA_BYTES_8;
   obj->CanHandle.Init.RxFifo1ElmtsNbr = 0;
   obj->CanHandle.Init.RxBuffersNbr = 0;
@@ -159,11 +182,11 @@ while (!IS_FDCAN_NOMINAL_TSEG1(ntq / nominalPrescaler)){ // > 1 && < 256
   obj->CanHandle.Init.TxFifoQueueMode = FDCAN_TX_FIFO_OPERATION;
   obj->CanHandle.Init.TxElmtSize = FDCAN_DATA_BYTES_8;
 
-  Serial.print("Nominal Prescaler:"); Serial.println(nominalPrescaler);
-  Serial.print("ntq:"); Serial.println(ntq);
-  Serial.print("Nominal TimeSeg1:"); Serial.println(obj->CanHandle.Init.NominalTimeSeg1);
-  Serial.print("Nominal TimeSeg2:"); Serial.println(obj->CanHandle.Init.NominalTimeSeg2);
-  Serial.print("SyncJumpWidth:"); Serial.println(obj->CanHandle.Init.NominalSyncJumpWidth);
+  //Serial.print("Nominal Prescaler:"); Serial.println(nominalPrescaler);
+  //Serial.print("ntq:"); Serial.println(ntq);
+  //Serial.print("Nominal TimeSeg1:"); Serial.println(obj->CanHandle.Init.NominalTimeSeg1);
+  //Serial.print("Nominal TimeSeg2:"); Serial.println(obj->CanHandle.Init.NominalTimeSeg2);
+  //Serial.print("SyncJumpWidth:"); Serial.println(obj->CanHandle.Init.NominalSyncJumpWidth);
 
   Trd_internal_init(obj);
 }
@@ -185,38 +208,57 @@ void Set_CAN_Pin(can_t *obj, PinName rd, PinName td, int hz){
 void Trd_internal_init(can_t *obj){
   // call HAL init function
   if (HAL_FDCAN_Init(&obj->CanHandle) != HAL_OK){
-    Serial.println("HAL_FDCAN_Init error\n");
+    //Serial.println("HAL_FDCAN_Init error\n");
   } else {
-    Serial.println("Init success!");
+    //Serial.println("Init success!");
   }
 
  
 
   if (my_can_filter(obj, 0, 0, CANStandard, 0) == 0){
-    Serial.println("can_filter standard error!");
+    //Serial.println("can_filter standard error!");
   }
 
   if (my_can_filter(obj, 0, 0, CANExtended, 0) == 0){
-    Serial.println("can_filter extended error!");
+    //Serial.println("can_filter extended error!");
   }
 
   if (HAL_FDCAN_ConfigGlobalFilter(&obj->CanHandle, FDCAN_REJECT, FDCAN_REJECT, FDCAN_FILTER_REMOTE, FDCAN_FILTER_REMOTE) != HAL_OK){
-    Serial.println("HAL_FDCAN_ConfigGlobalFilter error");
+    //Serial.println("HAL_FDCAN_ConfigGlobalFilter error");
   }
+
+
+  // activate FDCAN interrupts  
+  if (HAL_FDCAN_ActivateNotification(&obj->CanHandle, FDCAN_IT_RX_FIFO0_NEW_MESSAGE | FDCAN_IT_RX_FIFO0_FULL, 0xFFFF) != HAL_OK){
+    Serial.println("HAL_FDCAN_ActivateNotification error");
+  } else {
+    Serial.println("HAL_FDCAN_ActivateNotification success!");
+  }
+
+  
+
+  // FDCAN1 interrupt Init
+  NVIC_SetVector(FDCAN1_IT0_IRQn, (uint32_t)&FDCAN1_IT0_IRQHandler);
+  NVIC_EnableIRQ(FDCAN1_IT0_IRQn);
 
 
   if (HAL_FDCAN_Start(&obj->CanHandle) != HAL_OK){
-    Serial.println("HAL_FDCAN_Start error\n");
+    //Serial.println("HAL_FDCAN_Start error\n");
   } else {
-    Serial.println("Start success!");
+    //Serial.println("Start success!");
   }
 
-  // FDCAN1 interrupt Init
-  HAL_NVIC_SetPriority(FDCAN1_IT0_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(FDCAN1_IT0_IRQn);
+  
+
+  //Serial.println("FDCAN1 interrupt success");
 
 }
 
+/**
+ * from can_write of mbed OS Target STM
+ * and SimpleCAN github
+ * 
+ * **/
 int my_can_write(can_t *obj, CAN_Message msg, int cc){
 /**
   typedef struct
@@ -286,6 +328,41 @@ int my_can_write(can_t *obj, CAN_Message msg, int cc){
 }
 
 
+/**
+ *  from can_read of mbed OS Target STM
+ * 
+**/
+int my_can_read(can_t *obj, CAN_Message *msg, int handle)
+{
+  UNUSED(handle);
+
+  if (HAL_FDCAN_GetRxFifoFillLevel(&obj->CanHandle, FDCAN_RX_FIFO0) == 0){
+    return 0; // no message arrived
+  }
+
+  FDCAN_RxHeaderTypeDef RxHeader = {0};
+  if (HAL_FDCAN_GetRxMessage(&obj->CanHandle, FDCAN_RX_FIFO0, &RxHeader, msg->data) != HAL_OK){
+    //Serial.println("HAL_FDCAN_GetRxMessage error");
+    return 0;
+  }
+  
+  if (RxHeader.IdType == FDCAN_STANDARD_ID){
+    msg->format = CANStandard;
+  } else {
+    msg->format = CANExtended;
+  }
+  msg->id = RxHeader.Identifier;
+  msg->type = (RxHeader.RxFrameType == FDCAN_DATA_FRAME) ? CANData : CANRemote;
+  msg->len = RxHeader.DataLength >> 16;
+
+  return 1;
+}
+
+
+/**
+ * from can_filter of mbed OS Target STM
+ * 
+ * **/
 int my_can_filter(can_t *obj, uint32_t id, uint32_t mask, CANFormat format, int32_t handle){
   FDCAN_FilterTypeDef sFilterConfig = {0};
 
@@ -314,7 +391,153 @@ int my_can_filter(can_t *obj, uint32_t id, uint32_t mask, CANFormat format, int3
   return 1;
 }
 
+/**
+ *  from can_rderror of mbed OS Target STM
+ * 
+ * **/
+unsigned char my_can_rderror(can_t *obj)
+{
+  FDCAN_ErrorCountersTypeDef ErrorCounters;
 
+  HAL_FDCAN_GetErrorCounters(&obj->CanHandle, &ErrorCounters);
+
+  return (unsigned char)ErrorCounters.RxErrorCnt;
+}
+
+
+/**
+ * 
+ * from can_tderror of mbed OS target STM
+ * 
+ * **/
+unsigned char my_can_tderror(can_t *obj)
+{
+  FDCAN_ErrorCountersTypeDef ErrorCounters;
+
+  HAL_FDCAN_GetErrorCounters(&obj->CanHandle, &ErrorCounters);
+
+  return (unsigned char)ErrorCounters.TxErrorCnt;
+}
+
+/**
+ * from can_mode of mbed OS target STM
+ * 
+ * **/
+int my_can_mode(can_t *obj, CanMode mode)
+{
+  if (HAL_FDCAN_Stop(&obj->CanHandle) != HAL_OK){
+    //Serial.println("HAL_FDCAN_Stop error");
+  }
+
+  switch (mode){
+    case MODE_RESET:
+      break;
+    case MODE_NORMAL:
+      obj->CanHandle.Init.Mode = FDCAN_MODE_NORMAL;
+      break;
+    case MODE_SILENT: // Bus Monitoring
+      obj->CanHandle.Init.Mode = FDCAN_MODE_BUS_MONITORING;
+      break;
+    case MODE_TEST_GLOBAL: // External Loopback
+    case MODE_TEST_LOCAL:
+      obj->CanHandle.Init.Mode = FDCAN_MODE_EXTERNAL_LOOPBACK;
+      break;
+    case MODE_TEST_SILENT:
+      obj->CanHandle.Init.Mode = FDCAN_MODE_INTERNAL_LOOPBACK;
+      break;
+    default:
+      return 0;
+  }
+
+  Trd_internal_init(obj);
+  
+  return 1;
+}
+
+
+/**
+ * from can_irq of mbed OS target STM
+ * **/
+static void can_irq(CANName name, int id)
+{
+  FDCAN_HandleTypeDef CanHandle;
+  CanHandle.Instance = (FDCAN_GlobalTypeDef *)name;
+
+  if (__HAL_FDCAN_GET_IT_SOURCE(&CanHandle, FDCAN_IT_TX_COMPLETE)){
+    if (__HAL_FDCAN_GET_FLAG(&CanHandle, FDCAN_FLAG_TX_COMPLETE)){
+      __HAL_FDCAN_CLEAR_FLAG(&CanHandle, FDCAN_FLAG_TX_COMPLETE);
+      //irq_handler(can_irq_contexts[id], IRQ_TX);
+    }
+  } // complete IRQ
+
+  #if (defined FDCAN_IT_RX_BUFFER_NEW_MESSAGE)
+    if (__HAL_FDCAN_GET_IT_SOURCE(&CanHandle, FDCAN_IT_RX_BUFFER_NEW_MESSAGE)){
+      if (__HAL_FDCAN_GET_FLAG(&CanHandle, FDCAN_IT_RX_BUFFER_NEW_MESSAGE)){
+        __HAL_FDCAN_CLEAR_FLAG(&CanHandle, FDCAN_IT_RX_BUFFER_NEW_MESSAGE);
+        //irq_handler(can_irq_contexts[id], IRQ_RX);
+      }
+    }    
+   // new message buffer
+  #else 
+    if (__HAL_FDCAN_GET_IT_SOURCE(&CanHandle, FDCAN_IT_RX_FIFO0_NEW_MESSAGE)){
+      if (__HAL_FDCAN_GET_FLAG(&CanHandle, FDCAN_IT_RX_FIFO0_NEW_MESSAGE)){
+        __HAL_FDCAN_CLEAR_FLAG(&CanHandle, FDCAN_IT_RX_FIFO0_NEW_MESSAGE);
+        //irq_handler(can_irq_contexts[id], IRQ_RX);
+      }
+    }
+  #endif // new message FIFO
+
+  if (__HAL_FDCAN_GET_IT_SOURCE(&CanHandle, FDCAN_IT_ERROR_WARNING)){
+    if (__HAL_FDCAN_GET_FLAG(&CanHandle, FDCAN_FLAG_ERROR_WARNING)){
+      __HAL_FDCAN_CLEAR_FLAG(&CanHandle, FDCAN_FLAG_ERROR_WARNING);
+      //irq_handler(can_irq_contexts[id], IRQ_ERROR);
+    }
+  }  // error warning
+
+  if (__HAL_FDCAN_GET_IT_SOURCE(&CanHandle, FDCAN_IT_ERROR_PASSIVE)){
+    if (__HAL_FDCAN_GET_FLAG(&CanHandle, FDCAN_FLAG_ERROR_PASSIVE)){
+      __HAL_FDCAN_CLEAR_FLAG(&CanHandle, FDCAN_FLAG_ERROR_PASSIVE);
+      //irq_handler(can_irq_contexts[id], IRQ_PASSIVE);
+    }
+  } // passive irq
+
+  if (__HAL_FDCAN_GET_IT_SOURCE(&CanHandle, FDCAN_IT_BUS_OFF)){
+    if (__HAL_FDCAN_GET_FLAG(&CanHandle, FDCAN_FLAG_BUS_OFF)){
+      __HAL_FDCAN_CLEAR_FLAG(&CanHandle, FDCAN_FLAG_BUS_OFF);
+      //irq_handler(can_irq_contexts[id], IRQ_BUS);
+    }
+  }
+}
+
+// **********Interrupt******************
+void FDCAN1_IT0_IRQHandler(void){
+  //Serial.println("Interrupt!");
+  HAL_FDCAN_IRQHandler(&my_can.CanHandle);
+}
+
+
+void HAL_FDCAN_TxBufferCompleteCallback(FDCAN_HandleTypeDef *hfdcan, uint32_t BufferIndexes){
+  
+  Serial.println("Message Sent!");
+}
+
+void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs){
+
+ 
+   if (RxFifo0ITs == FDCAN_IT_RX_FIFO0_NEW_MESSAGE){  // = 1
+      receiveMsg = true;
+   } 
+
+   if (RxFifo0ITs == (FDCAN_IT_RX_FIFO0_FULL + FDCAN_IT_RX_FIFO0_NEW_MESSAGE)){ // new message + full = 5
+      Rx_Fifo0_full = true;
+   }
+
+   Rx_IT_Number = RxFifo0ITs;
+   
+   //counter = 0;
+  //Serial.println("Receive new message!");
+  
+}
 
 
 void setup() {
@@ -330,7 +553,7 @@ void setup() {
   #endif
   
   // Low level initialization
-  //HAL_Init();
+  HAL_Init();
 
   //asm volatile ("SVC #0x32\n\t");
   //HAL_MPU_Disable();
@@ -348,20 +571,43 @@ void setup() {
   // initiate can_t _can object  
   Set_CAN_Pin(&my_can, PB_8, PH_13, 250000);  
 
+  // Set external Loop Back mode
+  my_can_mode(&my_can, MODE_TEST_GLOBAL);
+
   //HAL_MPU_Enable(MPU_PRIVILEGED_DEFAULT);
-  Serial.println("-------------------------------------");
-  Serial.println("Start loop");
-  Serial.println("-------------------------------------");
+  //Serial.println("-------------------------------------");
+  //Serial.println("Start loop");
+  //Serial.println("-------------------------------------");
 }
 
+
+void HAL_FDCAN_TxEventFifoCallback(FDCAN_HandleTypeDef *hfdcan, uint32_t TxEventFifoITs){
+  //Serial.println("Sent message fifo");
+}
 
 
 void loop() {
   // put your main code here, to run repeatedly:
   if (my_can_write(&my_can, CANMessage(1337, &counter, 1), 1)){
-    Serial.println("Sent:"); Serial.println(counter);
+    //Serial.print("Sent:"); Serial.println(counter);
     counter++;
   } else {
     //Serial.println("Error");
   }
+
+  if (receiveMsg){
+    Serial.println("Interrupt!!!");
+    receiveMsg = false;
+  }
+
+  if (Rx_Fifo0_full){
+    Serial.println("FIFO full");
+    Rx_Fifo0_full = false;
+    
+  }
+
+  //Serial.println(Rx_IT_Number);
+  //if (my_can_read(&my_can, &msg, 0)){
+    //Serial.print("Received:");Serial.println(msg.data[0]);
+  //}
 }
