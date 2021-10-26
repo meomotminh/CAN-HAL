@@ -208,6 +208,7 @@ typedef struct SDO {
 public:    
     uint32_t index;
     uint32_t address;
+    uint32_t value;
     struct SDO* next;
 };
 

@@ -49,7 +49,101 @@ static uint32_t CRC_Hash_Function(uint32_t toHash){
   return toHash;
 }
 
-void append_Linked_List(struct SDO** head_ref, uint32_t index, uint32_t address){
+
+/**
+ * Write Parameter
+ * **/
+uint8_t write_parameter(void){
+  uint32_t tmp = (RxData[2] << 16) + (RxData[1] << 8) + RxData[3];
+  uint32_t value = (RxData[7] << 24) + (RxData[6] << 16) + (RxData[5] << 8) + RxData[4];
+  struct SDO* found = find_value(&my_SDO_List, tmp);
+
+  if ( found != NULL){
+    *(__IO uint32_t *)(found->address) = value;
+    TxData[0] = ??;
+    TxData[1] = RxData[1];
+    TxData[2] = RxData[2];
+    TxData[3] = RxData[3];
+    TxData[4] = 0x00;
+    TxData[5] = 0x00;
+    TxData[6] = 0x00;
+    TxData[7] = 0x00;
+  } else {
+    TxData[0] = ??;
+    TxData[1] = RxData[1];
+    TxData[2] = RxData[2];
+    TxData[3] = RxData[3];
+    TxData[4] = 0x00;
+    TxData[5] = 0x00;
+    TxData[6] = 0x00;
+    TxData[7] = 0x00;
+    return 0;
+  }
+  
+  return 1;
+}
+
+
+
+/**
+ * Read Parameter
+ * */
+uint8_t SDO* read_parameter(void){
+  uint32_t tmp = (RxData[2] << 16) + (RxData[1] << 8) + RxData[3];
+  struct SDO* found = find_value(&my_SDO_List, tmp);
+
+  if (found == NULL){
+    TxData[0] = ??;
+    TxData[1] = RxData[1];
+    TxData[2] = RxData[2];
+    TxData[3] = RxData[3];
+    TxData[4] = 0x00;
+    TxData[5] = 0x00;
+    TxData[6] = 0x00;
+    TxData[7] = 0x00;
+    return 0;
+  } else {
+    uint32_t read_from_SRAM = *(__IO uint16_t *)(found->address);
+
+    TxData[0] = ??;
+    TxData[1] = RxData[1];
+    TxData[2] = RxData[2];
+    TxData[3] = RxData[3];
+    TxData[4] = read_from_SRAM & 0xFF000000;
+    TxData[5] = read_from_SRAM & 0x00FF0000;
+    TxData[6] = read_from_SRAM & 0x0000FF00;
+    TxData[7] = read_from_SRAM & 0x000000FF;
+  }
+
+  return 1;
+
+}
+
+
+/**
+ * Find value in Linked List
+ * **/
+struct SDO* find_value(struct SDO** head_ref, uint32_t value){
+  struct SDO *last = *head_ref;
+
+  if (*last == NULL){
+    return NULL;
+  } 
+    
+  // traverse until the end
+  while (last->next != NULL){
+    if (last->value == value) 
+      return last;
+    last = last->next;
+  }
+
+  return NULL;
+}
+
+/**
+ * Append 1 node into linked list 
+**/
+void append_Linked_List(struct SDO** head_ref, uint32_t index, uint32_t address, uint32_t value){
   // allocate new node
   struct SDO* new_node = (struct SDO*)malloc(sizeof(struct SDO));
 
@@ -58,6 +152,7 @@ void append_Linked_List(struct SDO** head_ref, uint32_t index, uint32_t address)
   // put data
   new_node->index = index;
   new_node->address = address;
+  new_node->value = value;
   new_node->next = NULL;
 
   // if linked list is empty then make new node as head
@@ -85,6 +180,7 @@ void display_Linked_List(void){
       Serial.println("****************");
       Serial.print("SDO index:"); Serial.println(tmp->index);
       Serial.print("SDO address:"); Serial.println(tmp->address, HEX);
+      Serial.print("SDO value:"); Serial.println(tmp->value);
 
       tmp = tmp->next;
     }
@@ -108,291 +204,291 @@ uint8_t write_SDO_to_SRAM(void){
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2000_00_indx)) = res_2000_00;
   //Serial.println(res_2000_00_indx);
   // create SDO object and add to linked list
-  append_Linked_List(&my_SDO_List, res_2000_00_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2000_00_indx));
+  append_Linked_List(&my_SDO_List, res_2000_00_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2000_00_indx),200000);
 #endif
 
 
 #ifdef res_2000_01 
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2000_01_indx)) = res_2000_01;
   //Serial.println(res_2000_01_indx);
-  append_Linked_List(&my_SDO_List, res_2000_01_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2000_01_indx));
+  append_Linked_List(&my_SDO_List, res_2000_01_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2000_01_indx),200001);
 #endif
 
 
 #ifdef res_2000_03 
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2000_03_indx)) = res_2000_03;
   //Serial.println(res_2000_03_indx);
-  append_Linked_List(&my_SDO_List, res_2000_03_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2000_03_indx));
+  append_Linked_List(&my_SDO_List, res_2000_03_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2000_03_indx),200003);
 #endif
 
 #ifdef res_2002_02 
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2002_02_indx)) = res_2002_02;
   //Serial.println(res_2002_02_indx);
-  append_Linked_List(&my_SDO_List, res_2002_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2002_02_indx));
+  append_Linked_List(&my_SDO_List, res_2002_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2002_02_indx),200202);
 #endif
 
 #ifdef res_2020_02    
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2020_02_indx)) = res_2020_02;
   //Serial.println(res_2020_02_indx);
-  append_Linked_List(&my_SDO_List, res_2020_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2020_02_indx));
+  append_Linked_List(&my_SDO_List, res_2020_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2020_02_indx),202002);
 #endif
 
 #ifdef res_2100_02
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2100_02_indx)) = res_2100_02;
   //Serial.println(res_2100_02_indx);
-  append_Linked_List(&my_SDO_List, res_2100_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2100_02_indx));
+  append_Linked_List(&my_SDO_List, res_2100_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2100_02_indx),210002);
 #endif
 
 #ifdef res_2102_02
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2102_02_indx)) = res_2102_02;
   //Serial.println(res_2102_02_indx);
-  append_Linked_List(&my_SDO_List, res_2102_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2102_02_indx));
+  append_Linked_List(&my_SDO_List, res_2102_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2102_02_indx),210202);
 #endif
 
 #ifdef res_2102_06
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2102_06_indx)) = res_2102_06;
   //Serial.println(res_2102_06_indx);
-  append_Linked_List(&my_SDO_List, res_2102_06_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2102_06_indx));
+  append_Linked_List(&my_SDO_List, res_2102_06_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2102_06_indx),210206);
 #endif
 
 #ifdef res_2100_06
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2000_03_indx)) = res_2000_03;
   //Serial.println(res_2000_03_indx);
-  append_Linked_List(&my_SDO_List, res_2000_03_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2000_03_indx));
+  append_Linked_List(&my_SDO_List, res_2000_03_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2000_03_indx),200003);
 #endif
 
 #ifdef res_2200_02
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2200_02_indx)) = res_2200_02;
   //Serial.println(res_2200_02_indx);
-  append_Linked_List(&my_SDO_List, res_2200_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2200_02_indx));
+  append_Linked_List(&my_SDO_List, res_2200_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2200_02_indx),220002);
 #endif
 
 #ifdef res_2200_06
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2200_06_indx)) = res_2200_06;
   //Serial.println(res_2200_06_indx);
-  append_Linked_List(&my_SDO_List, res_2200_06_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2200_06_indx));
+  append_Linked_List(&my_SDO_List, res_2200_06_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2200_06_indx),220006);
 #endif
 
 #ifdef res_2001_01
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2001_01_indx)) = res_2001_01;
   //Serial.println(res_2001_01_indx);
-  append_Linked_List(&my_SDO_List, res_2001_01_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2001_01_indx));
+  append_Linked_List(&my_SDO_List, res_2001_01_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2001_01_indx),200101);
 #endif
 
 #ifdef res_2101_02
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2101_02_indx)) = res_2101_02;
   //Serial.println(res_2101_02_indx); 
-  append_Linked_List(&my_SDO_List, res_2101_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2101_02_indx));
+  append_Linked_List(&my_SDO_List, res_2101_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2101_02_indx),210102);
 #endif
 
 #ifdef res_2101_06
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2101_06_indx)) = res_2101_06;
   //Serial.println(res_2101_06_indx);
-  append_Linked_List(&my_SDO_List, res_2101_06_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2101_06_indx));
+  append_Linked_List(&my_SDO_List, res_2101_06_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2101_06_indx),210106);
 #endif
 
 #ifdef res_2201_02
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2201_02_indx)) = res_2201_02;
   //Serial.println(res_2201_02_indx);
-  append_Linked_List(&my_SDO_List, res_2201_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2201_02_indx));
+  append_Linked_List(&my_SDO_List, res_2201_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2201_02_indx),220102);
 #endif
 
 #ifdef res_2201_06
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2201_06_indx)) = res_2201_06;
   //Serial.println(res_2201_06_indx);
-  append_Linked_List(&my_SDO_List, res_2201_06_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2201_06_indx));
+  append_Linked_List(&my_SDO_List, res_2201_06_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2201_06_indx),220106);
 #endif
 
 #ifdef res_2103_06
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2103_06_indx)) = res_2103_06;
   //Serial.println(res_2103_06_indx);
-  append_Linked_List(&my_SDO_List, res_2103_06_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2103_06_indx));
+  append_Linked_List(&my_SDO_List, res_2103_06_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2103_06_indx),210306);
 #endif
 
 #ifdef res_2103_02
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2103_02_indx)) = res_2103_02;
   //Serial.println(res_2103_02_indx);
-  append_Linked_List(&my_SDO_List, res_2103_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2103_02_indx));
+  append_Linked_List(&my_SDO_List, res_2103_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2103_02_indx),210302);
 #endif
 
 #ifdef res_2104_02
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2104_02_indx)) = res_2104_02;
   //Serial.println(res_2104_02_indx);
-  append_Linked_List(&my_SDO_List, res_2104_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2104_02_indx));
+  append_Linked_List(&my_SDO_List, res_2104_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2104_02_indx),210402);
 #endif
 
 #ifdef res_2106_06
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2106_06_indx)) = res_2106_06;
   //Serial.println(res_2106_06_indx);
-  append_Linked_List(&my_SDO_List, res_2106_06_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2106_06_indx));
+  append_Linked_List(&my_SDO_List, res_2106_06_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2106_06_indx),210606);
 #endif
 
 #ifdef res_2002_01
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2002_01_indx)) = res_2002_01;
   //Serial.println(res_2002_01_indx);
-  append_Linked_List(&my_SDO_List, res_2002_01_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2002_01_indx));
+  append_Linked_List(&my_SDO_List, res_2002_01_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2002_01_indx),200201);
 #endif
 
 #ifdef res_2020_01
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2020_01_indx)) = res_2020_01;
   //Serial.println(res_2020_01_indx);
-  append_Linked_List(&my_SDO_List, res_2020_01_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2020_01_indx));
+  append_Linked_List(&my_SDO_List, res_2020_01_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2020_01_indx),202001);
 #endif
 
 #ifdef res_2413_02
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2413_02_indx)) = res_2413_02;
   //Serial.println(res_2413_02_indx);
-  append_Linked_List(&my_SDO_List, res_2413_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2413_02_indx));
+  append_Linked_List(&my_SDO_List, res_2413_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2413_02_indx),241302);
 #endif
 
 #ifdef res_2923_02
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2923_02_indx)) = res_2923_02;
   //Serial.println(res_2923_02_indx);
-  append_Linked_List(&my_SDO_List, res_2923_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2923_02_indx));
+  append_Linked_List(&my_SDO_List, res_2923_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2923_02_indx),292302);
 #endif
 
 #ifdef res_2414_02
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2414_02_indx)) = res_2414_02;
   //Serial.println(res_2414_02_indx);
-  append_Linked_List(&my_SDO_List, res_2414_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2414_02_indx));
+  append_Linked_List(&my_SDO_List, res_2414_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2414_02_indx),241402);
 #endif
 
 #ifdef res_2461_02
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2461_02_indx)) = res_2461_02;
   //Serial.println(res_2461_02_indx);
-  append_Linked_List(&my_SDO_List, res_2461_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2461_02_indx));
+  append_Linked_List(&my_SDO_List, res_2461_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2461_02_indx),246102);
 #endif
 
 #ifdef res_2001_02 
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2001_02_indx)) = res_2001_02;
   //Serial.println(res_2001_02_indx);
-  append_Linked_List(&my_SDO_List, res_2001_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2001_02_indx));
+  append_Linked_List(&my_SDO_List, res_2001_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2001_02_indx),200102);
 #endif
 
 #ifdef res_2001_03    
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2001_03_indx)) = res_2001_03;
   //Serial.println(res_2001_03_indx);
-  append_Linked_List(&my_SDO_List, res_2001_03_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2001_03_indx));
+  append_Linked_List(&my_SDO_List, res_2001_03_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2001_03_indx),200103);
 #endif
 
 #ifdef res_2411_02
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2411_02_indx)) = res_2411_02;
   //Serial.println(res_2411_02_indx);
-  append_Linked_List(&my_SDO_List, res_2411_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2411_02_indx));
+  append_Linked_List(&my_SDO_List, res_2411_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2411_02_indx),241102);
 #endif
 
 #ifdef res_2405_02
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2405_02_indx)) = res_2405_02;
   //Serial.println(res_2405_02_indx);
-  append_Linked_List(&my_SDO_List, res_2405_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2405_02_indx));
+  append_Linked_List(&my_SDO_List, res_2405_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2405_02_indx),240502);
 #endif
 
 #ifdef res_2402_02
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2402_02_indx)) = res_2402_02;
   //Serial.println(res_2402_02_indx);
-  append_Linked_List(&my_SDO_List, res_2402_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2402_02_indx));
+  append_Linked_List(&my_SDO_List, res_2402_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2402_02_indx),240202);
 #endif
 
 #ifdef res_2405_07
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2405_07_indx)) = res_2405_07;
   //Serial.println(res_2405_07_indx);
-  append_Linked_List(&my_SDO_List, res_2405_07_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2405_07_indx));
+  append_Linked_List(&my_SDO_List, res_2405_07_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2405_07_indx),240507);
 #endif
 
 #ifdef res_2460_02
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2460_02_indx)) = res_2460_02;
   //Serial.println(res_2460_02_indx);
-  append_Linked_List(&my_SDO_List, res_2460_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2460_02_indx));
+  append_Linked_List(&my_SDO_List, res_2460_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2460_02_indx),246002);
 #endif
 
 #ifdef res_2404_02
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2404_02_indx)) = res_2404_02;
   //Serial.println(res_2404_02_indx);
-  append_Linked_List(&my_SDO_List, res_2404_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2404_02_indx));
+  append_Linked_List(&my_SDO_List, res_2404_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2404_02_indx),240402);
 #endif
 
 #ifdef res_2401_02
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2401_02_indx)) = res_2401_02;
   //Serial.println(res_2401_02_indx);
-  append_Linked_List(&my_SDO_List, res_2401_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2401_02_indx));
+  append_Linked_List(&my_SDO_List, res_2401_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2401_02_indx),240102);
 #endif
 
 #ifdef res_2403_02 
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2403_02_indx)) = res_2403_02;
   //Serial.println(res_2403_02_indx);
-  append_Linked_List(&my_SDO_List, res_2403_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2403_02_indx));
+  append_Linked_List(&my_SDO_List, res_2403_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2403_02_indx),240302);
 #endif
 
 #ifdef res_2400_02    
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2400_02_indx)) = res_2400_02;
   //Serial.println(res_2400_02_indx);
-  append_Linked_List(&my_SDO_List, res_2400_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2400_02_indx));
+  append_Linked_List(&my_SDO_List, res_2400_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2400_02_indx),240002);
 #endif
 
 #ifdef res_2403_07
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2403_07_indx)) = res_2403_07;
   //Serial.println(res_2403_07_indx);
-  append_Linked_List(&my_SDO_List, res_2403_07_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2403_07_indx));
+  append_Linked_List(&my_SDO_List, res_2403_07_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2403_07_indx),240307);
 #endif
 
 #ifdef res_2404_07 
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2404_07_indx)) = res_2404_07;
   //Serial.println(res_2404_07_indx);
-  append_Linked_List(&my_SDO_List, res_2404_07_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2404_07_indx));
+  append_Linked_List(&my_SDO_List, res_2404_07_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2404_07_indx),240407);
 #endif
 
 #ifdef res_2405_03
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2405_03_indx)) = res_2405_03;
   //Serial.println(res_2405_03_indx);
-  append_Linked_List(&my_SDO_List, res_2405_03_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2405_03_indx));
+  append_Linked_List(&my_SDO_List, res_2405_03_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2405_03_indx),240503);
 #endif
 
 #ifdef res_2404_03
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2404_03_indx)) = res_2404_03;
   //Serial.println(res_2404_03_indx);
-  append_Linked_List(&my_SDO_List, res_2404_03_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2404_03_indx));
+  append_Linked_List(&my_SDO_List, res_2404_03_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2404_03_indx),240403);
 #endif
 
 #ifdef res_2403_03
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2403_03_indx)) = res_2403_03;
   //Serial.println(res_2403_03_indx);
-  append_Linked_List(&my_SDO_List, res_2403_03_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2403_03_indx));
+  append_Linked_List(&my_SDO_List, res_2403_03_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2403_03_indx),240303);
 #endif
 
 #ifdef res_2405_04
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2405_04_indx)) = res_2405_04;
   //Serial.println(res_2405_04_indx);
-  append_Linked_List(&my_SDO_List, res_2405_04_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2405_04_indx));
+  append_Linked_List(&my_SDO_List, res_2405_04_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2405_04_indx),240504);
 #endif
 
 #ifdef res_2404_04
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2404_04_indx)) = res_2404_04;
   //Serial.println(res_2404_04_indx);
-  append_Linked_List(&my_SDO_List, res_2404_04_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2404_04_indx));
+  append_Linked_List(&my_SDO_List, res_2404_04_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2404_04_indx),240404);
 #endif
 
 #ifdef res_2403_04
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2403_04_indx)) = res_2403_04;
   //Serial.println(res_2403_04_indx);
-  append_Linked_List(&my_SDO_List, res_2403_04_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2403_04_indx));
+  append_Linked_List(&my_SDO_List, res_2403_04_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2403_04_indx),240304);
 #endif
 
 #ifdef res_2402_07
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2402_07_indx)) = res_2402_07;
   //Serial.println(res_2402_07_indx);
-  append_Linked_List(&my_SDO_List, res_2402_07_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2402_07_indx));
+  append_Linked_List(&my_SDO_List, res_2402_07_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2402_07_indx),240207);
 #endif
 
 #ifdef res_2401_07
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2401_07_indx)) = res_2401_07;
   //Serial.println(res_2401_07_indx);
-  append_Linked_List(&my_SDO_List, res_2401_07_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2401_07_indx));
+  append_Linked_List(&my_SDO_List, res_2401_07_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2401_07_indx),240107);
 #endif
 
 #ifdef res_2400_07
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2400_07_indx)) = res_2400_07;
   //Serial.println(res_2400_07_indx);
-  append_Linked_List(&my_SDO_List, res_2400_07_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2400_07_indx));
+  append_Linked_List(&my_SDO_List, res_2400_07_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2400_07_indx),240007);
 #endif
 
   
@@ -1187,7 +1283,6 @@ void SystemClock_Config(void){
  * Rx FIFO0 Callback
  * 
  * **/
-
 void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs){
   if ((RxFifo0ITs & FDCAN_IT_RX_FIFO0_NEW_MESSAGE) != RESET){
     /* Retrieve Rx message from Rx FIFO0 */
@@ -1198,15 +1293,16 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
       
       // check action 
         // READ
-      if ((RxData[0] & 0xF0) == 0x40){
-        // Prepare TxData
-        //TxData[0] = prepare_Command_ID(false);
-        prepare_Answer();
-        if (my_can_write(&my_can, CANMessage(prepare_ID(RxHeader.Identifier),TxData,8), 8)){
+      if ((RxData[0] & 0xF0) == 0x40){        
+        read_parameter();        
+      } else if ((RxData[0] & 0xF0) == 0x60) {
+        // WRITE
+        write_parameter();  
+      }
 
-        } else {
-          Error_Handler();
-        }
+      if (my_can_write(&my_can, CANMessage(prepare_ID(RxHeader.Identifier),TxData,8), 8)){
+      } else {
+        Error_Handler();
       }
       
       
