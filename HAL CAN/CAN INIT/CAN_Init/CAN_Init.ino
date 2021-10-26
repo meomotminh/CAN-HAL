@@ -8,28 +8,516 @@
 
 using namespace mbed;
 
-// Global Var
-can_t my_can;
-char counter = 0;
-CAN_Message msg;
+/**********CAN GLOBAL VAR*************/
+can_t my_can; // mbed CAN object
+char counter = 0; 
+CAN_Message msg; // mbed CAN message object
+FDCAN_RxHeaderTypeDef RxHeader; // HAL RxHeader object
+FDCAN_TxHeaderTypeDef TxHeader; // HAL TxHeader object
+uint8_t RxData[8]; // Buffer to save RxData
+uint8_t TxData[8]; // Buffer to save TxData
 
-FDCAN_RxHeaderTypeDef RxHeader;
-FDCAN_TxHeaderTypeDef TxHeader;
-uint8_t RxData[8];
-uint8_t TxData[8] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, ID};
-
+/********BOOL VAR FOR TESTING********/
 bool receiveMsg = false;
 bool Rx_Fifo0_full = false;
 bool timeout = false;
 bool interrupt = false;
 uint32_t Rx_IT_Number = 0;
+bool timestamp = false;
+
+/**********SRAM GLOBAL VAR*************/
+SRAM_HandleTypeDef hsram;
+FMC_NORSRAM_TimingTypeDef timing;
+FMC_NORSRAM_TimingTypeDef Extiming;
+uint32_t aTxBuffer[16];
+uint32_t aRxBuffer[16];
+uint16_t uwIndex;
+uint32_t Hash_Int = 0x00000F0F;
+SDO* my_SDO_List = NULL;
+
 
 HAL_StatusTypeDef hal_can_init(FDCAN_HandleTypeDef *hfdcan){
     return (HAL_FDCAN_Init(hfdcan));
 }
 
+
+static uint32_t CRC_Hash_Function(uint32_t toHash){
+  uint32_t temp = toHash & 0xF8000000;  // get 5 bits
+  toHash = toHash << 5;
+  toHash = toHash ^ (temp >> 27);
+  toHash = toHash ^ Hash_Int;
+  return toHash;
+}
+
+void append_Linked_List(struct SDO** head_ref, uint32_t index, uint32_t address){
+  // allocate new node
+  struct SDO* new_node = (struct SDO*)malloc(sizeof(struct SDO));
+
+  struct SDO *last = *head_ref;
+
+  // put data
+  new_node->index = index;
+  new_node->address = address;
+  new_node->next = NULL;
+
+  // if linked list is empty then make new node as head
+  if (*head_ref == NULL){
+    *head_ref = new_node;
+    return;
+  }
+
+  // else traverse till the last node
+  while (last->next != NULL)
+    last = last->next;
+
+  // change the next of last node
+  last->next = new_node;
+  return;
+}
+
+void display_Linked_List(void){
+  struct SDO *tmp;
+  if (my_SDO_List == NULL){
+    return;
+  } else {    
+    tmp = my_SDO_List;
+    while (tmp != NULL){
+      Serial.println("****************");
+      Serial.print("SDO index:"); Serial.println(tmp->index);
+      Serial.print("SDO address:"); Serial.println(tmp->address, HEX);
+
+      tmp = tmp->next;
+    }
+  }
+}
+
+/* https://github.com/STMicroelectronics/STM32CubeG4/blob/master/Projects/STM32G474E-EVAL/Examples/FMC/FMC_SRAM/Src/main.c */
+static void Fill_Buffer(uint32_t *pBuffer, uint32_t uwBufferLength, uint16_t uwOffset){
+  uint16_t tmpIndex = 0;
+
+  for (tmpIndex = 0; tmpIndex < uwBufferLength; tmpIndex++){
+    pBuffer[tmpIndex] = tmpIndex + uwOffset;
+  }
+}
+
+uint8_t write_SDO_to_SRAM(void){
+  uwIndex = 0;
+  
+  //Serial.println(CRC_Hash_Function(200000));
+#ifdef res_2000_00 
+  *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2000_00_indx)) = res_2000_00;
+  //Serial.println(res_2000_00_indx);
+  // create SDO object and add to linked list
+  append_Linked_List(&my_SDO_List, res_2000_00_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2000_00_indx));
+#endif
+
+
+#ifdef res_2000_01 
+  *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2000_01_indx)) = res_2000_01;
+  //Serial.println(res_2000_01_indx);
+  append_Linked_List(&my_SDO_List, res_2000_01_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2000_01_indx));
+#endif
+
+
+#ifdef res_2000_03 
+  *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2000_03_indx)) = res_2000_03;
+  //Serial.println(res_2000_03_indx);
+  append_Linked_List(&my_SDO_List, res_2000_03_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2000_03_indx));
+#endif
+
+#ifdef res_2002_02 
+  *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2002_02_indx)) = res_2002_02;
+  //Serial.println(res_2002_02_indx);
+  append_Linked_List(&my_SDO_List, res_2002_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2002_02_indx));
+#endif
+
+#ifdef res_2020_02    
+  *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2020_02_indx)) = res_2020_02;
+  //Serial.println(res_2020_02_indx);
+  append_Linked_List(&my_SDO_List, res_2020_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2020_02_indx));
+#endif
+
+#ifdef res_2100_02
+  *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2100_02_indx)) = res_2100_02;
+  //Serial.println(res_2100_02_indx);
+  append_Linked_List(&my_SDO_List, res_2100_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2100_02_indx));
+#endif
+
+#ifdef res_2102_02
+  *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2102_02_indx)) = res_2102_02;
+  //Serial.println(res_2102_02_indx);
+  append_Linked_List(&my_SDO_List, res_2102_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2102_02_indx));
+#endif
+
+#ifdef res_2102_06
+  *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2102_06_indx)) = res_2102_06;
+  //Serial.println(res_2102_06_indx);
+  append_Linked_List(&my_SDO_List, res_2102_06_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2102_06_indx));
+#endif
+
+#ifdef res_2100_06
+  *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2000_03_indx)) = res_2000_03;
+  //Serial.println(res_2000_03_indx);
+  append_Linked_List(&my_SDO_List, res_2000_03_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2000_03_indx));
+#endif
+
+#ifdef res_2200_02
+  *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2200_02_indx)) = res_2200_02;
+  //Serial.println(res_2200_02_indx);
+  append_Linked_List(&my_SDO_List, res_2200_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2200_02_indx));
+#endif
+
+#ifdef res_2200_06
+  *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2200_06_indx)) = res_2200_06;
+  //Serial.println(res_2200_06_indx);
+  append_Linked_List(&my_SDO_List, res_2200_06_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2200_06_indx));
+#endif
+
+#ifdef res_2001_01
+  *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2001_01_indx)) = res_2001_01;
+  //Serial.println(res_2001_01_indx);
+  append_Linked_List(&my_SDO_List, res_2001_01_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2001_01_indx));
+#endif
+
+#ifdef res_2101_02
+  *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2101_02_indx)) = res_2101_02;
+  //Serial.println(res_2101_02_indx); 
+  append_Linked_List(&my_SDO_List, res_2101_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2101_02_indx));
+#endif
+
+#ifdef res_2101_06
+  *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2101_06_indx)) = res_2101_06;
+  //Serial.println(res_2101_06_indx);
+  append_Linked_List(&my_SDO_List, res_2101_06_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2101_06_indx));
+#endif
+
+#ifdef res_2201_02
+  *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2201_02_indx)) = res_2201_02;
+  //Serial.println(res_2201_02_indx);
+  append_Linked_List(&my_SDO_List, res_2201_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2201_02_indx));
+#endif
+
+#ifdef res_2201_06
+  *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2201_06_indx)) = res_2201_06;
+  //Serial.println(res_2201_06_indx);
+  append_Linked_List(&my_SDO_List, res_2201_06_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2201_06_indx));
+#endif
+
+#ifdef res_2103_06
+  *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2103_06_indx)) = res_2103_06;
+  //Serial.println(res_2103_06_indx);
+  append_Linked_List(&my_SDO_List, res_2103_06_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2103_06_indx));
+#endif
+
+#ifdef res_2103_02
+  *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2103_02_indx)) = res_2103_02;
+  //Serial.println(res_2103_02_indx);
+  append_Linked_List(&my_SDO_List, res_2103_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2103_02_indx));
+#endif
+
+#ifdef res_2104_02
+  *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2104_02_indx)) = res_2104_02;
+  //Serial.println(res_2104_02_indx);
+  append_Linked_List(&my_SDO_List, res_2104_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2104_02_indx));
+#endif
+
+#ifdef res_2106_06
+  *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2106_06_indx)) = res_2106_06;
+  //Serial.println(res_2106_06_indx);
+  append_Linked_List(&my_SDO_List, res_2106_06_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2106_06_indx));
+#endif
+
+#ifdef res_2002_01
+  *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2002_01_indx)) = res_2002_01;
+  //Serial.println(res_2002_01_indx);
+  append_Linked_List(&my_SDO_List, res_2002_01_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2002_01_indx));
+#endif
+
+#ifdef res_2020_01
+  *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2020_01_indx)) = res_2020_01;
+  //Serial.println(res_2020_01_indx);
+  append_Linked_List(&my_SDO_List, res_2020_01_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2020_01_indx));
+#endif
+
+#ifdef res_2413_02
+  *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2413_02_indx)) = res_2413_02;
+  //Serial.println(res_2413_02_indx);
+  append_Linked_List(&my_SDO_List, res_2413_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2413_02_indx));
+#endif
+
+#ifdef res_2923_02
+  *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2923_02_indx)) = res_2923_02;
+  //Serial.println(res_2923_02_indx);
+  append_Linked_List(&my_SDO_List, res_2923_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2923_02_indx));
+#endif
+
+#ifdef res_2414_02
+  *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2414_02_indx)) = res_2414_02;
+  //Serial.println(res_2414_02_indx);
+  append_Linked_List(&my_SDO_List, res_2414_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2414_02_indx));
+#endif
+
+#ifdef res_2461_02
+  *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2461_02_indx)) = res_2461_02;
+  //Serial.println(res_2461_02_indx);
+  append_Linked_List(&my_SDO_List, res_2461_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2461_02_indx));
+#endif
+
+#ifdef res_2001_02 
+  *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2001_02_indx)) = res_2001_02;
+  //Serial.println(res_2001_02_indx);
+  append_Linked_List(&my_SDO_List, res_2001_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2001_02_indx));
+#endif
+
+#ifdef res_2001_03    
+  *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2001_03_indx)) = res_2001_03;
+  //Serial.println(res_2001_03_indx);
+  append_Linked_List(&my_SDO_List, res_2001_03_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2001_03_indx));
+#endif
+
+#ifdef res_2411_02
+  *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2411_02_indx)) = res_2411_02;
+  //Serial.println(res_2411_02_indx);
+  append_Linked_List(&my_SDO_List, res_2411_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2411_02_indx));
+#endif
+
+#ifdef res_2405_02
+  *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2405_02_indx)) = res_2405_02;
+  //Serial.println(res_2405_02_indx);
+  append_Linked_List(&my_SDO_List, res_2405_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2405_02_indx));
+#endif
+
+#ifdef res_2402_02
+  *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2402_02_indx)) = res_2402_02;
+  //Serial.println(res_2402_02_indx);
+  append_Linked_List(&my_SDO_List, res_2402_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2402_02_indx));
+#endif
+
+#ifdef res_2405_07
+  *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2405_07_indx)) = res_2405_07;
+  //Serial.println(res_2405_07_indx);
+  append_Linked_List(&my_SDO_List, res_2405_07_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2405_07_indx));
+#endif
+
+#ifdef res_2460_02
+  *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2460_02_indx)) = res_2460_02;
+  //Serial.println(res_2460_02_indx);
+  append_Linked_List(&my_SDO_List, res_2460_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2460_02_indx));
+#endif
+
+#ifdef res_2404_02
+  *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2404_02_indx)) = res_2404_02;
+  //Serial.println(res_2404_02_indx);
+  append_Linked_List(&my_SDO_List, res_2404_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2404_02_indx));
+#endif
+
+#ifdef res_2401_02
+  *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2401_02_indx)) = res_2401_02;
+  //Serial.println(res_2401_02_indx);
+  append_Linked_List(&my_SDO_List, res_2401_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2401_02_indx));
+#endif
+
+#ifdef res_2403_02 
+  *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2403_02_indx)) = res_2403_02;
+  //Serial.println(res_2403_02_indx);
+  append_Linked_List(&my_SDO_List, res_2403_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2403_02_indx));
+#endif
+
+#ifdef res_2400_02    
+  *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2400_02_indx)) = res_2400_02;
+  //Serial.println(res_2400_02_indx);
+  append_Linked_List(&my_SDO_List, res_2400_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2400_02_indx));
+#endif
+
+#ifdef res_2403_07
+  *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2403_07_indx)) = res_2403_07;
+  //Serial.println(res_2403_07_indx);
+  append_Linked_List(&my_SDO_List, res_2403_07_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2403_07_indx));
+#endif
+
+#ifdef res_2404_07 
+  *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2404_07_indx)) = res_2404_07;
+  //Serial.println(res_2404_07_indx);
+  append_Linked_List(&my_SDO_List, res_2404_07_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2404_07_indx));
+#endif
+
+#ifdef res_2405_03
+  *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2405_03_indx)) = res_2405_03;
+  //Serial.println(res_2405_03_indx);
+  append_Linked_List(&my_SDO_List, res_2405_03_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2405_03_indx));
+#endif
+
+#ifdef res_2404_03
+  *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2404_03_indx)) = res_2404_03;
+  //Serial.println(res_2404_03_indx);
+  append_Linked_List(&my_SDO_List, res_2404_03_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2404_03_indx));
+#endif
+
+#ifdef res_2403_03
+  *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2403_03_indx)) = res_2403_03;
+  //Serial.println(res_2403_03_indx);
+  append_Linked_List(&my_SDO_List, res_2403_03_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2403_03_indx));
+#endif
+
+#ifdef res_2405_04
+  *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2405_04_indx)) = res_2405_04;
+  //Serial.println(res_2405_04_indx);
+  append_Linked_List(&my_SDO_List, res_2405_04_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2405_04_indx));
+#endif
+
+#ifdef res_2404_04
+  *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2404_04_indx)) = res_2404_04;
+  //Serial.println(res_2404_04_indx);
+  append_Linked_List(&my_SDO_List, res_2404_04_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2404_04_indx));
+#endif
+
+#ifdef res_2403_04
+  *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2403_04_indx)) = res_2403_04;
+  //Serial.println(res_2403_04_indx);
+  append_Linked_List(&my_SDO_List, res_2403_04_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2403_04_indx));
+#endif
+
+#ifdef res_2402_07
+  *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2402_07_indx)) = res_2402_07;
+  //Serial.println(res_2402_07_indx);
+  append_Linked_List(&my_SDO_List, res_2402_07_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2402_07_indx));
+#endif
+
+#ifdef res_2401_07
+  *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2401_07_indx)) = res_2401_07;
+  //Serial.println(res_2401_07_indx);
+  append_Linked_List(&my_SDO_List, res_2401_07_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2401_07_indx));
+#endif
+
+#ifdef res_2400_07
+  *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2400_07_indx)) = res_2400_07;
+  //Serial.println(res_2400_07_indx);
+  append_Linked_List(&my_SDO_List, res_2400_07_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2400_07_indx));
+#endif
+
+  
+
+  return 1;
+}
+
+void init_SDO_object(void){
+  //uint32_t *temp = (uint32_t *)(BASE_ADD + 200000);
+  //HAL_SRAM_Write_16b();
+  hsram.Instance = FMC_NORSRAM_DEVICE; // Base address of : (up to 512KB) system data RAM accessible over over AXI   
+  hsram.Extended = FMC_NORSRAM_EXTENDED_DEVICE;
+  /* at stm32h7xx_ll_fmc.h */
+  hsram.Init.NSBank = FMC_NORSRAM_BANK1;      
+  hsram.Init.DataAddressMux = FMC_DATA_ADDRESS_MUX_DISABLE;
+  hsram.Init.MemoryType = FMC_MEMORY_TYPE_SRAM;
+  hsram.Init.MemoryDataWidth = FMC_NORSRAM_MEM_BUS_WIDTH_32; 
+  hsram.Init.BurstAccessMode = FMC_BURST_ACCESS_MODE_DISABLE;
+  hsram.Init.WaitSignalPolarity = FMC_WAIT_SIGNAL_POLARITY_LOW;
+  hsram.Init.WaitSignalActive = FMC_WAIT_TIMING_BEFORE_WS;
+  hsram.Init.WriteOperation = FMC_WRITE_OPERATION_ENABLE;
+  hsram.Init.ExtendedMode = FMC_EXTENDED_MODE_DISABLE;
+  hsram.Init.AsynchronousWait = FMC_ASYNCHRONOUS_WAIT_DISABLE;
+  hsram.Init.WriteBurst = FMC_WRITE_BURST_DISABLE;
+  hsram.Init.ContinuousClock = FMC_CONTINUOUS_CLOCK_SYNC_ONLY;
+  hsram.Init.WriteFifo = FMC_WRITE_FIFO_ENABLE;
+  hsram.Init.PageSize = FMC_PAGE_SIZE_NONE;
+
+  timing.AddressSetupTime = 2;
+  timing.AddressHoldTime = 15;
+  timing.DataSetupTime = 2;
+  timing.BusTurnAroundDuration = 1;
+  timing.CLKDivision = 16;
+  timing.DataLatency = 17;
+  timing.AccessMode = FMC_ACCESS_MODE_A;
+
+
+
+  if (HAL_SRAM_Init(&hsram, &timing, NULL) != HAL_OK){
+    Serial.println("HAL_SRAM_Init error");
+  } else {
+    Serial.println("HAL_SRAM_Init OK");
+  }
+
+
+  write_SDO_to_SRAM();
+
+
+}
+
+
+uint8_t prepare_Answer(void){
+  // check address
+  /*
+  uint32_t *temp_address = (uint32_t *) (BASE_ADD + (RxData[1] << 8) + (RxData[2] << 16) + (RxData[3]));
+  uint32_t temp_data = *temp_address;
+
+  switch (sizeof(temp_data))
+  {
+  case 4:
+    TxData[4] = (temp_data) >> 24;
+    TxData[5] = (temp_data & 0x00FF0000) >> 16;
+    TxData[6] = (temp_data & 0x0000FF00) >> 8;
+    TxData[7] = (temp_data & 0x000000FF);
+    break;
+  case 1:
+    TxData[4] = (temp_data) >> 24;
+    TxData[5] = 0x00;
+    TxData[6] = 0x00;
+    TxData[7] = 0x00;
+    break;
+  
+  default:
+    break;
+  }
+  */
+   
+}
+
+uint16_t prepare_ID(uint16_t ID_req){
+  uint16_t node_ID = ID_req & 0x07F;
+  return (node_ID | 0x580);
+}
+
+uint8_t prepare_Command_ID(bool end_msg){
+  uint8_t command_ID = RxData[0] & 0xF0;
+
+      switch (command_ID) {
+        case 0x20: // initiate domain download            
+            command_ID = 0x60;  // Server reply                        
+            break;
+        case 0x00:  // download domain segment toggle = 0
+            command_ID |= 0x20;  // or to remain toggle bit
+            break;
+        case 0x40:  // initiate domain upload
+            if (RxData[2] == 0x24 && RxData[3] == 0x02)
+            {
+                command_ID |= 0x0B;    // follow Noris excel   
+            } else {
+                command_ID |= 0x03;  // n = 0; e = s = 1
+            }
+            
+            break;        
+        case 0x60:  // upload domain segment with toggle bit = 0
+            if (end_msg) {command_ID = 0x01;} else {command_ID = 0x00;}
+            break;
+        case 0x70:  // upload domain segment with toggle bit = 1
+            if (end_msg) {command_ID = 0x11;} else {command_ID = 0x10;}
+            break;
+        case 0xc0:  // initiate block download
+            command_ID = 0xA0;
+            break;
+        default : // Unknown
+            command_ID = 0x00;
+            break;
+        }    
+    
+    return command_ID;
+}
+
+//uint8_t prepare_Data
+
+
 /* from https://github.com/meomotminh/STM32CubeG4/blob/master/Projects/STM32G474E-EVAL/Examples/FDCAN/FDCAN_Com_IT/Src/main.c */
-static uint32_t BufferCmp8b(uint8_t* pBuffer1, uint8_t* pBuffer2, uint16_t BufferLength){
+static uint32_t BufferCmp32b(uint32_t* pBuffer1, uint32_t* pBuffer2, uint16_t BufferLength){
   while (BufferLength--){
     if (*pBuffer1 != *pBuffer2)
     return 0;
@@ -194,9 +682,9 @@ while (!IS_FDCAN_NOMINAL_TSEG1(ntq / nominalPrescaler)){ // > 1 && < 256
   obj->CanHandle.Init.RxFifo0ElmtSize = FDCAN_DATA_BYTES_8;
   obj->CanHandle.Init.RxBufferSize = FDCAN_DATA_BYTES_8;
   
-  obj->CanHandle.Init.TxEventsNbr = 3;
+  obj->CanHandle.Init.TxEventsNbr = 24;
   obj->CanHandle.Init.TxBuffersNbr = 0;
-  obj->CanHandle.Init.TxFifoQueueElmtsNbr = 3;
+  obj->CanHandle.Init.TxFifoQueueElmtsNbr = 24;
   obj->CanHandle.Init.TxFifoQueueMode = FDCAN_TX_FIFO_OPERATION;
   obj->CanHandle.Init.TxElmtSize = FDCAN_DATA_BYTES_8;
 
@@ -310,12 +798,30 @@ void Trd_internal_init(can_t *obj){
     Serial.println("HAL_FDCAN_TT_ConfigTrigger OK");
   }*/
 
+
+  /***
+   * Config Timestamp counter
+  ***/
+  if (HAL_FDCAN_ConfigTimestampCounter(&obj->CanHandle, FDCAN_TIMESTAMP_PRESC_1) != HAL_OK){
+    Serial.println("HAL_FDCAN_ConfigTimestampCounter error!");
+  } else {
+    Serial.println("HAL_FDCAN_ConfigTimestampCounter OK!");
+  }
+  /***
+   * Enable Timestamp counter
+  ***/
+  if (HAL_FDCAN_EnableTimestampCounter(&obj->CanHandle, FDCAN_TIMESTAMP_INTERNAL) != HAL_OK){
+    Serial.println("HAL_FDCAN_EnableTimestampCounter error!");
+  } else {
+    Serial.println("HAL_FDCAN_EnableTimestampCounter OK!");
+  }
+  
   
 
   /***
   * Config Timeout Counter
   **/
-  if (HAL_FDCAN_ConfigTimeoutCounter(&obj->CanHandle, FDCAN_TIMEOUT_CONTINUOUS, 0xFFF) != HAL_OK){
+  if (HAL_FDCAN_ConfigTimeoutCounter(&obj->CanHandle, FDCAN_TIMEOUT_CONTINUOUS, 0xFFFF) != HAL_OK){
     Serial.println("HAL_FDCAN_ConfigTimeoutCounter error!");
   } else {
     Serial.println("HAL_FDCAN_ConfigTimeoutCounter OK!");
@@ -481,9 +987,9 @@ int my_can_filter(can_t *obj, uint32_t id, uint32_t mask, CANFormat format, int3
     Serial.println("HAL_FDCAN_ConfigFilter OK");
   }
 
-    /** Enable Interrupt
+   /** Enable Interrupt
    * **/
-  if (HAL_FDCAN_ActivateNotification(&my_can.CanHandle, FDCAN_IT_RX_FIFO0_NEW_MESSAGE | FDCAN_IT_TIMEOUT_OCCURRED, 0) != HAL_OK){
+  if (HAL_FDCAN_ActivateNotification(&my_can.CanHandle, FDCAN_IT_RX_FIFO0_NEW_MESSAGE | FDCAN_IT_TIMEOUT_OCCURRED | FDCAN_IT_TIMESTAMP_WRAPAROUND, 0xFFFF) != HAL_OK){
     //Error_Handler();
     Serial.println("HAL_FDCAN_ActivateNotification error!");
   } else {
@@ -491,6 +997,11 @@ int my_can_filter(can_t *obj, uint32_t id, uint32_t mask, CANFormat format, int3
   }
 
 
+  
+  /** Unregister Callback function ???
+  **/
+  
+  
 
   // FINALLY START FDCAN
 
@@ -521,6 +1032,10 @@ int my_can_filter(can_t *obj, uint32_t id, uint32_t mask, CANFormat format, int3
 
   return 1;
 }
+
+
+
+
 
 /**
  *  from can_rderror of mbed OS Target STM
@@ -586,64 +1101,11 @@ int my_can_mode(can_t *obj, CanMode mode)
 }
 
 
-/**
- * from can_irq of mbed OS target STM
- * **/
-static void can_irq(CANName name, int id)
-{
-  FDCAN_HandleTypeDef CanHandle;
-  CanHandle.Instance = (FDCAN_GlobalTypeDef *)name;
-
-  if (__HAL_FDCAN_GET_IT_SOURCE(&CanHandle, FDCAN_IT_TX_COMPLETE)){
-    if (__HAL_FDCAN_GET_FLAG(&CanHandle, FDCAN_FLAG_TX_COMPLETE)){
-      __HAL_FDCAN_CLEAR_FLAG(&CanHandle, FDCAN_FLAG_TX_COMPLETE);
-      //irq_handler(can_irq_contexts[id], IRQ_TX);
-    }
-  } // complete IRQ
-
-  #if (defined FDCAN_IT_RX_BUFFER_NEW_MESSAGE)
-    if (__HAL_FDCAN_GET_IT_SOURCE(&CanHandle, FDCAN_IT_RX_BUFFER_NEW_MESSAGE)){
-      if (__HAL_FDCAN_GET_FLAG(&CanHandle, FDCAN_IT_RX_BUFFER_NEW_MESSAGE)){
-        __HAL_FDCAN_CLEAR_FLAG(&CanHandle, FDCAN_IT_RX_BUFFER_NEW_MESSAGE);
-        //irq_handler(can_irq_contexts[id], IRQ_RX);
-      }
-    }    
-   // new message buffer
-  #else 
-    if (__HAL_FDCAN_GET_IT_SOURCE(&CanHandle, FDCAN_IT_RX_FIFO0_NEW_MESSAGE)){
-      if (__HAL_FDCAN_GET_FLAG(&CanHandle, FDCAN_IT_RX_FIFO0_NEW_MESSAGE)){
-        __HAL_FDCAN_CLEAR_FLAG(&CanHandle, FDCAN_IT_RX_FIFO0_NEW_MESSAGE);
-        //irq_handler(can_irq_contexts[id], IRQ_RX);
-      }
-    }
-  #endif // new message FIFO
-
-  if (__HAL_FDCAN_GET_IT_SOURCE(&CanHandle, FDCAN_IT_ERROR_WARNING)){
-    if (__HAL_FDCAN_GET_FLAG(&CanHandle, FDCAN_FLAG_ERROR_WARNING)){
-      __HAL_FDCAN_CLEAR_FLAG(&CanHandle, FDCAN_FLAG_ERROR_WARNING);
-      //irq_handler(can_irq_contexts[id], IRQ_ERROR);
-    }
-  }  // error warning
-
-  if (__HAL_FDCAN_GET_IT_SOURCE(&CanHandle, FDCAN_IT_ERROR_PASSIVE)){
-    if (__HAL_FDCAN_GET_FLAG(&CanHandle, FDCAN_FLAG_ERROR_PASSIVE)){
-      __HAL_FDCAN_CLEAR_FLAG(&CanHandle, FDCAN_FLAG_ERROR_PASSIVE);
-      //irq_handler(can_irq_contexts[id], IRQ_PASSIVE);
-    }
-  } // passive irq
-
-  if (__HAL_FDCAN_GET_IT_SOURCE(&CanHandle, FDCAN_IT_BUS_OFF)){
-    if (__HAL_FDCAN_GET_FLAG(&CanHandle, FDCAN_FLAG_BUS_OFF)){
-      __HAL_FDCAN_CLEAR_FLAG(&CanHandle, FDCAN_FLAG_BUS_OFF);
-      //irq_handler(can_irq_contexts[id], IRQ_BUS);
-    }
-  }
-}
 
 // **********Interrupt******************
 void FDCAN1_IT0_IRQHandler(void){
   //Serial.println("Interrupt!");
-  interrupt = true;
+  //interrupt = true;
   HAL_FDCAN_IRQHandler(&my_can.CanHandle);
 }
 
@@ -719,104 +1181,7 @@ void SystemClock_Config(void){
   }
 }
 
-/** FDCAN1 Initialization Function
- * **/
-static void MX_FDCAN1_Init(void){
-  // Config FDCAN1
-  my_can.CanHandle.Instance = FDCAN1;
-  //my_can.CanHandle.Init.ClockDivider = FDCAN_CLOCK_DIV1;
-  my_can.CanHandle.Init.FrameFormat = FDCAN_FRAME_FD_BRS;
-  my_can.CanHandle.Init.Mode = FDCAN_MODE_NORMAL;
-  my_can.CanHandle.Init.AutoRetransmission = ENABLE;
-  my_can.CanHandle.Init.TransmitPause = ENABLE;
-  my_can.CanHandle.Init.ProtocolException = DISABLE;
-  
-  my_can.CanHandle.Init.NominalPrescaler = 1;
-  my_can.CanHandle.Init.NominalSyncJumpWidth = 16;
-  my_can.CanHandle.Init.NominalTimeSeg1 = 63;
-  my_can.CanHandle.Init.NominalTimeSeg2 = 16;
-  my_can.CanHandle.Init.DataPrescaler = 1;
-  my_can.CanHandle.Init.DataTimeSeg1 = 5;
-  my_can.CanHandle.Init.DataTimeSeg2 = 4;
-  my_can.CanHandle.Init.StdFiltersNbr = 1;
-  my_can.CanHandle.Init.ExtFiltersNbr = 0;
-  my_can.CanHandle.Init.TxFifoQueueMode = FDCAN_TX_FIFO_OPERATION;
-  if (HAL_FDCAN_Init(&my_can.CanHandle) != HAL_OK){
-    //Error_Handler();
-    Serial.println("HAL_FDCAN_Init error");
-  } else {
-    Serial.println("HAL_FDCAN_Init OK");
-  }
-}
 
-/** GPIO Initialization Function
- * **/
-static void MX_GPIO_Init(void){
-  /* GPIO Ports Clocks Enable */
-  //__HAL_RCC_GPIOB_CLK_ENABLE();
-}
-
-/** Configure FDCAN
- * **/
-static void FDCAN_Config(void){
-  FDCAN_FilterTypeDef sFilterConfig;
-
-  /* Configure Rx Filter */ 
-  sFilterConfig.IdType = FDCAN_STANDARD_ID;
-  sFilterConfig.FilterIndex = 0;
-  sFilterConfig.FilterType = FDCAN_FILTER_MASK;
-  sFilterConfig.FilterConfig = FDCAN_FILTER_TO_RXFIFO0;
-  sFilterConfig.FilterID1 = 0x322;
-  sFilterConfig.FilterID2 = 0x7FF;
-  
-  if (HAL_FDCAN_ConfigFilter(&my_can.CanHandle, &sFilterConfig) != HAL_OK){
-    //Error_Handler();
-    Serial.println("HAL_FDCAN_ConfigFilter error!");
-  } else {
-    Serial.println("HAL_FDCAN_ConfigFilter OK!");
-  }
-
-  /** Configure global filter: 
-   *  Filter all remote frames with STD and EXT ID
-   *  Reject non matching frames with STD ID and EXT ID
-   * **/
-  if (HAL_FDCAN_ConfigGlobalFilter(&my_can.CanHandle, FDCAN_REJECT, FDCAN_REJECT, FDCAN_FILTER_REMOTE, FDCAN_FILTER_REMOTE) != HAL_OK){
-    //Error_Handler();
-    Serial.println("HAL_FDCAN_ConfigGlobalFilter error!");
-  } else {
-    Serial.println("HAL_FDCAN_ConfigGlobalFilter OK!");
-  }
-
-  /** Start FDCAN Module
-   * **/
-  if (HAL_FDCAN_Start(&my_can.CanHandle) != HAL_OK){
-    //Error_Handler();
-    Serial.println("HAL_FDCAN_Start error!");
-  } else {
-    Serial.println("HAL_FDCAN_Start OK!");
-  }
-
-  /** Enable Interrupt
-   * **/
-  if (HAL_FDCAN_ActivateNotification(&my_can.CanHandle, FDCAN_IT_TIMEOUT_OCCURRED, 0) != HAL_OK){//FDCAN_IT_RX_FIFO0_NEW_MESSAGE | 
-    //Error_Handler();
-    Serial.println("HAL_FDCAN_ActivateNotification error!");
-  } else {
-    Serial.println("HAL_FDCAN_ActivateNotification OK!");
-  }
-
-  /* Prepare Tx Header */
-  TxHeader.Identifier = 0x322;
-  TxHeader.IdType = FDCAN_STANDARD_ID;
-  TxHeader.TxFrameType = FDCAN_DATA_FRAME;
-  TxHeader.DataLength = FDCAN_DLC_BYTES_2;
-  TxHeader.ErrorStateIndicator = FDCAN_ESI_ACTIVE;
-  TxHeader.BitRateSwitch = FDCAN_BRS_OFF;
-  TxHeader.FDFormat = FDCAN_CLASSIC_CAN;
-  TxHeader.TxEventFifoControl = FDCAN_STORE_TX_EVENTS;
-  TxHeader.MessageMarker = 0;
-
-}
 
 /**
  * Rx FIFO0 Callback
@@ -828,8 +1193,23 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
     /* Retrieve Rx message from Rx FIFO0 */
     if (HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &RxHeader, RxData) != HAL_OK){
       Error_Handler();
-      Serial.println("HAL_FDCAN_GetRxMessage error!");
+      //Serial.println("HAL_FDCAN_GetRxMessage error!");
     } else {
+      
+      // check action 
+        // READ
+      if ((RxData[0] & 0xF0) == 0x40){
+        // Prepare TxData
+        //TxData[0] = prepare_Command_ID(false);
+        prepare_Answer();
+        if (my_can_write(&my_can, CANMessage(prepare_ID(RxHeader.Identifier),TxData,8), 8)){
+
+        } else {
+          Error_Handler();
+        }
+      }
+      
+      
       //Serial.println("Received msg!");
       receiveMsg = true;
     }
@@ -838,14 +1218,25 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
   }
 }
 
-
-/**
-* Time Out Occur Callback
-**/
-void HAL_FDCAN_TimeoutOccuredCallback(FDCAN_HandleTypeDef *hfdcan){
-   
-   timeout = true;
+void HAL_FDCAN_TimeoutOccurredCallback(FDCAN_HandleTypeDef *hfdcan){
+  //timeout = true;
 }
+
+
+void HAL_FDCAN_TimestampWraparoundCallback(FDCAN_HandleTypeDef *hfdcan){
+  timestamp = true;
+  int8_t fake_length = sizeof(fake);
+
+  for (int i = 0; i < sizeof(fake); i++){
+    if (my_can_write(&my_can, fake[i],1)){
+      
+    } else  {
+      Error_Handler();
+    }
+  }
+  
+}
+
 
 void Error_Handler(void){
   // DO SOMETHING 
@@ -859,6 +1250,10 @@ void setup() {
     Serial.println("*********FDCAN1************");
   #endif
 
+  #ifdef USE_HAL_FDCAN_REGISTER_CALLBACKS 
+    Serial.println("*****REGISTER-CALLBACK******");
+  #endif 
+  
   #ifdef CAN_1
     Serial.println("*********CAN1************");
   #endif
@@ -870,9 +1265,11 @@ void setup() {
   // Config System Clock
   //SystemClock_Config();
 
-  // Initialize all configured peripherals
-  //MX_GPIO_Init();
-  //MX_FDCAN1_Init();
+  // Init SDO object
+  init_SDO_object();
+
+  // Display SDO object linked list
+  display_Linked_List();
 
   // Configure FDCAN peripheral
   //FDCAN_Config();
@@ -886,8 +1283,31 @@ void setup() {
   
   // set filter and start
   //int my_can_filter(can_t *obj, uint32_t id, uint32_t mask, CANFormat format, int32_t handle)
-  my_can_filter(&my_can, 0x322, 0x7FF, CANStandard, 0);
+  my_can_filter(&my_can, 0x641, 0x7FF, CANStandard, 0);
 
+  
+  // Fill sample buffer
+  //Fill_Buffer(aTxBuffer, 16, 0xC20F);
+
+  
+  /* Write data to SRAM memory */
+  
+  /*for (uwIndex = 0; uwIndex < 16; uwIndex++){
+    *(__IO uint16_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + 2*uwIndex) = aTxBuffer[uwIndex];
+  }*/
+
+  /* Read data from SRAM memory */
+  /*for (uwIndex = 0; uwIndex < 16; uwIndex++){
+    aRxBuffer[uwIndex] = *(__IO uint16_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + 2*uwIndex);
+  }*/
+
+  /* Check data integrity */
+  /*
+   if (BufferCmp32b(aTxBuffer, aRxBuffer, 16)){
+    Serial.println("PASSED!");
+  } else {
+    Serial.println("FAILED!");
+  }*/
   
 
   // Check Address of FDCAN RAM 
@@ -916,14 +1336,21 @@ void HAL_FDCAN_TxEventFifoCallback(FDCAN_HandleTypeDef *hfdcan, uint32_t TxEvent
 
 void loop() {
   // put your main code here, to run repeatedly:
-  /*
-  if (my_can_write(&my_can, CANMessage(1337, &counter, 1), 1)){
+  TxData[0] = 0x40;
+  TxData[1] = 0x20;
+  TxData[2] = 0x01;
+  TxData[3] = 0x00;
+  TxData[4] = 0x00;
+  TxData[5] = 0x00;
+  TxData[6] = 0x00;
+  TxData[7] = 0x00;
+  if (my_can_write(&my_can, CANMessage(0x641, TxData, 8), 8)){
     //Serial.print("Sent:"); Serial.println(counter);
-    counter++;
+    //counter++;
   } else {
-    //Serial.println("Error");
+    Error_Handler();
   }
-  */
+  
   if (interrupt){
     Serial.println("Interrupt");
     interrupt = false;
@@ -934,7 +1361,7 @@ void loop() {
         if (my_can_read(&my_can, &msg, 0)){
           Serial.print("Received:");Serial.println(msg.data[0]);
         }
-      Serial.println("Correct!");
+      //Serial.println("Correct!");
     //}
     
     receiveMsg = false;
@@ -947,21 +1374,14 @@ void loop() {
   }
 
   if (timeout){
-    Serial.println("Timeout occur!");
+    //Serial.println("Timeout occur!");
     timeout = false;
   }
 
-  // READ FDACN_TOCV
-  //Serial.print("Timeout Counter:");Serial.println(HAL_FDCAN_GetTimeoutCounter(&my_can.CanHandle));
-  
-  
-  //if (HAL_FDCAN_AddMessageToTxFifoQ(&my_can.CanHandle, &TxHeader, TxData) != HAL_OK){
-    //Serial.println("Sent error!");
-  //}
-  
+  if (timestamp){
+    //Serial.println("Timestamp wrap around");
+    timestamp = false;
+  }
 
-  //Serial.println(Rx_IT_Number);
-  //if (my_can_read(&my_can, &msg, 0)){
-    //Serial.print("Received:");Serial.println(msg.data[0]);
-  //}
+  
 }
