@@ -2,6 +2,7 @@
 #define LOITRUCK_SDO_H
 
 #include "mbed.h"
+#include <string>
 
 using namespace mbed;
 
@@ -203,6 +204,7 @@ CAN_Message fake[24] = {
 #define res_2400_07_indx    48
 
 #define Truck_ID            "EFG      4xx5xx (2019)"
+#define Truck_ID_indx       49          // +6 words ceil(22/4.0)
 
 typedef struct SDO {
 public:    
@@ -210,6 +212,18 @@ public:
     uint32_t address;
     uint32_t value;
     struct SDO* next;
+    uint8_t length;
+    bool segmented;
+
+    // Constructor
+    SDO(uint32_t _index, uint32_t _address, uint32_t _value, struct SDO* _next, uint8_t _length, bool _segmented){            
+        index = _index;
+        address = _address;
+        value = _value;
+        next = _next;
+        length = _length;
+        segmented = _segmented;
+    }
 };
 
 

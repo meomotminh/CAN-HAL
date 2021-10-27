@@ -1,6 +1,7 @@
 #include "mbed.h"
 #include <ThreadDebug.h>
 #include "loiTruck_SDO.h"
+#include <string>
 
 // For TRACE32 Debug
 //UsbDebugCommInterface debugComm(&SerialUSB);
@@ -24,6 +25,9 @@ bool timeout = false;
 bool interrupt = false;
 uint32_t Rx_IT_Number = 0;
 bool timestamp = false;
+bool found_parameter = false;
+bool sendMsg = false;
+bool fake_heart_beat = false;
 
 /**********SRAM GLOBAL VAR*************/
 SRAM_HandleTypeDef hsram;
@@ -34,6 +38,15 @@ uint32_t aRxBuffer[16];
 uint16_t uwIndex;
 uint32_t Hash_Int = 0x00000F0F;
 SDO* my_SDO_List = NULL;
+
+/**********FOR SEGMENTED*************/
+uint8_t segment_count = 0;
+bool segmented = false;
+uint8_t add_count = 0;
+uint8_t rest_count = 0;
+uint32_t rest_char = 0;
+uint16_t bit_swap = 0;
+
 
 
 HAL_StatusTypeDef hal_can_init(FDCAN_HandleTypeDef *hfdcan){
@@ -60,7 +73,7 @@ uint8_t write_parameter(void){
 
   if ( found != NULL){
     *(__IO uint32_t *)(found->address) = value;
-    TxData[0] = ??;
+    TxData[0] = RxData[0] & 0xF0;
     TxData[1] = RxData[1];
     TxData[2] = RxData[2];
     TxData[3] = RxData[3];
@@ -69,7 +82,7 @@ uint8_t write_parameter(void){
     TxData[6] = 0x00;
     TxData[7] = 0x00;
   } else {
-    TxData[0] = ??;
+    TxData[0] = RxData[0] & 0xF0;
     TxData[1] = RxData[1];
     TxData[2] = RxData[2];
     TxData[3] = RxData[3];
@@ -88,12 +101,17 @@ uint8_t write_parameter(void){
 /**
  * Read Parameter
  * */
-uint8_t SDO* read_parameter(void){
+uint8_t read_parameter(void){
   uint32_t tmp = (RxData[2] << 16) + (RxData[1] << 8) + RxData[3];
   struct SDO* found = find_value(&my_SDO_List, tmp);
 
+  //Serial.print("Value to find:");
+  //Serial.println(tmp, HEX);
+  
+  //Serial.println(found->value, HEX);
+
   if (found == NULL){
-    TxData[0] = ??;
+    TxData[0] = RxData[0] & 0xF0;
     TxData[1] = RxData[1];
     TxData[2] = RxData[2];
     TxData[3] = RxData[3];
@@ -101,20 +119,139 @@ uint8_t SDO* read_parameter(void){
     TxData[5] = 0x00;
     TxData[6] = 0x00;
     TxData[7] = 0x00;
+    found_parameter = false;
     return 0;
   } else {
-    uint32_t read_from_SRAM = *(__IO uint16_t *)(found->address);
+    //Serial.println("Hier"); 
+    // if segmented or not
+    if (found->segmented){
+      // first message
+      if (segment_count == 0){
+        segmented = true;   // Flag at the beginning
+        add_count = 0;
+        bit_swap = 0;
+        rest_char = 0;
 
-    TxData[0] = ??;
-    TxData[1] = RxData[1];
-    TxData[2] = RxData[2];
-    TxData[3] = RxData[3];
-    TxData[4] = read_from_SRAM & 0xFF000000;
-    TxData[5] = read_from_SRAM & 0x00FF0000;
-    TxData[6] = read_from_SRAM & 0x0000FF00;
-    TxData[7] = read_from_SRAM & 0x000000FF;
+        TxData[0] = RxData[0] & 0xF0 + 1;   // to send data length
+        TxData[1] = RxData[1];
+        TxData[2] = RxData[2];
+        TxData[3] = RxData[3];
+        TxData[4] = found->length;  
+        TxData[5] = 0x00;
+        TxData[6] = 0x00;
+        TxData[7] = 0x00;
+
+        //Serial.println("*****FIRST SEGMENT****");
+
+        segment_count++;
+      // normal message
+      } else if (segment_count <= ceil(found->length / 7.0)) { // each message send 7 bytes data
+        // get 2 word EFG_ 
+        uint32_t read_from_SRAM_1st = *(__IO uint32_t *)(found->address + ((add_count++) * 4));
+        uint32_t read_from_SRAM_2nd = *(__IO uint32_t *)(found->address + ((add_count++) * 4));
+        rest_count++;
+        
+        // 7 
+        // 1(rest) + 6
+        // 2(rest) + 5
+        // 3(rest) + 4
+        // 4(rest) + 3
+
+        switch (rest_count)
+        {
+        case 1:
+          TxData[0] = bit_swap;  
+          TxData[1] = read_from_SRAM_1st >> 24;
+          TxData[2] = read_from_SRAM_1st >> 16;
+          TxData[3] = read_from_SRAM_1st >> 8;
+          TxData[4] = read_from_SRAM_1st;
+          TxData[5] = read_from_SRAM_2nd >> 24;
+          TxData[6] = read_from_SRAM_2nd >> 16;
+          TxData[7] = read_from_SRAM_2nd >> 8;  
+          rest_char = read_from_SRAM_2nd << 24; // get the last byte
+          break;
+        case 2:
+          TxData[0] = bit_swap;  
+          TxData[1] = rest_char;
+          TxData[2] = read_from_SRAM_1st >> 24;
+          TxData[3] = read_from_SRAM_1st >> 16;
+          TxData[4] = read_from_SRAM_1st >> 8;
+          TxData[5] = read_from_SRAM_1st;
+          TxData[6] = read_from_SRAM_2nd >> 24;
+          TxData[7] = read_from_SRAM_2nd >> 16;  
+          rest_char = read_from_SRAM_2nd << 16; // get last 2 bytes
+          break;
+        case 3:
+          TxData[0] = bit_swap;  
+          TxData[1] = rest_char >> 8;
+          TxData[2] = rest_char;
+          TxData[3] = read_from_SRAM_1st >> 24;
+          TxData[4] = read_from_SRAM_1st >> 16;
+          TxData[5] = read_from_SRAM_1st >> 8;
+          TxData[6] = read_from_SRAM_1st;
+          TxData[7] = read_from_SRAM_2nd >> 24;  
+          rest_char = read_from_SRAM_2nd << 8; // get last 3 bytes
+          break;
+        case 4:
+          TxData[0] = bit_swap;  
+          TxData[1] = rest_char >> 16;
+          TxData[2] = rest_char >> 8;
+          TxData[3] = rest_char;
+          TxData[4] = read_from_SRAM_1st >> 24;
+          TxData[5] = read_from_SRAM_1st >> 16;
+          TxData[6] = read_from_SRAM_1st >> 8;
+          TxData[7] = read_from_SRAM_1st;  
+          rest_char = 0; // delay 1 addres
+          add_count--;
+          break;
+        
+        default:
+          break;
+        }
+        
+        
+        bit_swap ^= 0x10;
+        
+        
+
+        
+        //Serial.println("*****SEGMENT****");
+
+        segment_count++;       
+      // terminate message
+      } else {
+        TxData[0] = 0x07;   // terminate
+        TxData[1] = 0x00;
+        TxData[2] = 0x00;
+        TxData[3] = 0x00;
+        TxData[4] = 0x00;  
+        TxData[5] = 0x00;
+        TxData[6] = 0x00;
+        TxData[7] = 0x00; 
+
+        //Serial.println("*****FINAL SEGMENT****");
+        segmented = false;        
+      }
+
+    // Not segmented      
+    } else {
+        uint32_t read_from_SRAM_1st = *(__IO uint32_t *)(found->address);        
+
+        TxData[0] = RxData[0] & 0xF0 ;   
+        TxData[1] = RxData[1];
+        TxData[2] = RxData[2];
+        TxData[3] = RxData[3];
+        TxData[4] = read_from_SRAM_1st >> 24;
+        TxData[5] = read_from_SRAM_1st >> 16;
+        TxData[6] = read_from_SRAM_1st >> 8;
+        TxData[7] = read_from_SRAM_1st;
+    }
+
+    
   }
 
+  //Serial.println("Hier");
+  found_parameter = true;
   return 1;
 
 }
@@ -124,37 +261,40 @@ uint8_t SDO* read_parameter(void){
  * Find value in Linked List
  * **/
 struct SDO* find_value(struct SDO** head_ref, uint32_t value){
-  struct SDO *last = *head_ref;
+  struct SDO* last = *head_ref;
 
-  if (*last == NULL){
+  if (*head_ref == NULL){
     return NULL;
   } 
     
   // traverse until the end
   while (last->next != NULL){
     if (last->value == value) 
-      return last;
-    last = last->next;
+      {
+        return last;  
+      } else {
+        last = last->next;    
+      }    
   }
 
-  return NULL;
 }
 
 /**
  * Append 1 node into linked list 
 **/
-void append_Linked_List(struct SDO** head_ref, uint32_t index, uint32_t address, uint32_t value){
-  // allocate new node
-  struct SDO* new_node = (struct SDO*)malloc(sizeof(struct SDO));
-
+void append_Linked_List(struct SDO** head_ref, struct SDO* temp_node){
+  
   struct SDO *last = *head_ref;
+  struct SDO* new_node = (struct SDO*) malloc(sizeof(struct SDO));
 
-  // put data
-  new_node->index = index;
-  new_node->address = address;
-  new_node->value = value;
+  // assign value
+  new_node->index = temp_node->index;
+  new_node->address = temp_node->address;
+  new_node->value = temp_node->value;
   new_node->next = NULL;
-
+  new_node->length = temp_node->length;
+  new_node->segmented = temp_node->segmented;
+    
   // if linked list is empty then make new node as head
   if (*head_ref == NULL){
     *head_ref = new_node;
@@ -180,7 +320,7 @@ void display_Linked_List(void){
       Serial.println("****************");
       Serial.print("SDO index:"); Serial.println(tmp->index);
       Serial.print("SDO address:"); Serial.println(tmp->address, HEX);
-      Serial.print("SDO value:"); Serial.println(tmp->value);
+      Serial.print("SDO value:"); Serial.println(tmp->value, HEX);
 
       tmp = tmp->next;
     }
@@ -199,296 +339,371 @@ static void Fill_Buffer(uint32_t *pBuffer, uint32_t uwBufferLength, uint16_t uwO
 uint8_t write_SDO_to_SRAM(void){
   uwIndex = 0;
   
+struct SDO temp(0,0,0,NULL,0,false);
+
   //Serial.println(CRC_Hash_Function(200000));
 #ifdef res_2000_00 
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2000_00_indx)) = res_2000_00;
-  //Serial.println(res_2000_00_indx);
+  
   // create SDO object and add to linked list
-  append_Linked_List(&my_SDO_List, res_2000_00_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2000_00_indx),200000);
+  temp = SDO(res_2000_00_indx,SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2000_00_indx),0x200000,NULL,0x01,false);  
+  append_Linked_List(&my_SDO_List, &temp);
 #endif
 
 
 #ifdef res_2000_01 
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2000_01_indx)) = res_2000_01;
   //Serial.println(res_2000_01_indx);
-  append_Linked_List(&my_SDO_List, res_2000_01_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2000_01_indx),200001);
+  temp = SDO(res_2000_01_indx,SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2000_01_indx),0x200001,NULL,0x01,false);
+  append_Linked_List(&my_SDO_List, &temp);
+
+  //display_Linked_List();
 #endif
 
 
 #ifdef res_2000_03 
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2000_03_indx)) = res_2000_03;
   //Serial.println(res_2000_03_indx);
-  append_Linked_List(&my_SDO_List, res_2000_03_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2000_03_indx),200003);
+  temp = SDO(res_2000_03_indx,SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2000_03_indx),0x200003,NULL,0x01,false);
+  append_Linked_List(&my_SDO_List, &temp);
+
+ 
 #endif
 
 #ifdef res_2002_02 
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2002_02_indx)) = res_2002_02;
   //Serial.println(res_2002_02_indx);
-  append_Linked_List(&my_SDO_List, res_2002_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2002_02_indx),200202);
+  temp = SDO(res_2002_02_indx,SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2002_02_indx),0x200202,NULL,0x01,false);
+  append_Linked_List(&my_SDO_List, &temp);
 #endif
 
 #ifdef res_2020_02    
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2020_02_indx)) = res_2020_02;
   //Serial.println(res_2020_02_indx);
-  append_Linked_List(&my_SDO_List, res_2020_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2020_02_indx),202002);
+  temp = SDO(res_2020_02_indx,SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2020_02_indx),0x202002,NULL,0x01,false);
+  append_Linked_List(&my_SDO_List, &temp);
 #endif
 
 #ifdef res_2100_02
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2100_02_indx)) = res_2100_02;
   //Serial.println(res_2100_02_indx);
-  append_Linked_List(&my_SDO_List, res_2100_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2100_02_indx),210002);
+  temp = SDO(res_2100_02_indx,SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2100_02_indx),0x210002,NULL,0x01,false);
+  append_Linked_List(&my_SDO_List, &temp);
 #endif
 
 #ifdef res_2102_02
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2102_02_indx)) = res_2102_02;
   //Serial.println(res_2102_02_indx);
-  append_Linked_List(&my_SDO_List, res_2102_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2102_02_indx),210202);
+  temp = SDO(res_2102_02_indx,SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2102_02_indx),0x210202,NULL,0x01,false);
+  append_Linked_List(&my_SDO_List, &temp);
 #endif
 
 #ifdef res_2102_06
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2102_06_indx)) = res_2102_06;
   //Serial.println(res_2102_06_indx);
-  append_Linked_List(&my_SDO_List, res_2102_06_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2102_06_indx),210206);
+  temp = SDO(res_2102_06_indx,SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2102_06_indx),0x210206,NULL,0x01,false);
+  append_Linked_List(&my_SDO_List, &temp);
 #endif
 
 #ifdef res_2100_06
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2000_03_indx)) = res_2000_03;
   //Serial.println(res_2000_03_indx);
-  append_Linked_List(&my_SDO_List, res_2000_03_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2000_03_indx),200003);
+  temp = SDO(res_2000_03_indx,SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2000_03_indx),0x200003,NULL,0x01,false);
+  append_Linked_List(&my_SDO_List, &temp);
 #endif
 
 #ifdef res_2200_02
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2200_02_indx)) = res_2200_02;
   //Serial.println(res_2200_02_indx);
-  append_Linked_List(&my_SDO_List, res_2200_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2200_02_indx),220002);
+  temp = SDO(res_2200_02_indx,SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2200_02_indx),0x220002,NULL,0x01,false);
+  append_Linked_List(&my_SDO_List, &temp);
 #endif
 
 #ifdef res_2200_06
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2200_06_indx)) = res_2200_06;
   //Serial.println(res_2200_06_indx);
-  append_Linked_List(&my_SDO_List, res_2200_06_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2200_06_indx),220006);
+  temp = SDO(res_2200_06_indx,SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2200_06_indx),0x220006,NULL,0x01,false);
+  append_Linked_List(&my_SDO_List, &temp);
 #endif
 
 #ifdef res_2001_01
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2001_01_indx)) = res_2001_01;
   //Serial.println(res_2001_01_indx);
-  append_Linked_List(&my_SDO_List, res_2001_01_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2001_01_indx),200101);
+  temp = SDO(res_2001_01_indx,SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2001_01_indx),0x200101,NULL,0x01,false);
+  append_Linked_List(&my_SDO_List, &temp);
 #endif
 
 #ifdef res_2101_02
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2101_02_indx)) = res_2101_02;
   //Serial.println(res_2101_02_indx); 
-  append_Linked_List(&my_SDO_List, res_2101_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2101_02_indx),210102);
+  temp = SDO(res_2101_02_indx,SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2101_02_indx),0x210102,NULL,0x01,false);
+  append_Linked_List(&my_SDO_List, &temp);
 #endif
 
 #ifdef res_2101_06
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2101_06_indx)) = res_2101_06;
   //Serial.println(res_2101_06_indx);
-  append_Linked_List(&my_SDO_List, res_2101_06_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2101_06_indx),210106);
+  temp = SDO(res_2101_06_indx,SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2101_06_indx),0x210106,NULL,0x01,false);
+  append_Linked_List(&my_SDO_List, &temp);
 #endif
 
 #ifdef res_2201_02
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2201_02_indx)) = res_2201_02;
   //Serial.println(res_2201_02_indx);
-  append_Linked_List(&my_SDO_List, res_2201_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2201_02_indx),220102);
+  temp = SDO(res_2201_02_indx,SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2201_02_indx),0x220102,NULL,0x01,false);
+  append_Linked_List(&my_SDO_List, &temp);
 #endif
 
 #ifdef res_2201_06
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2201_06_indx)) = res_2201_06;
   //Serial.println(res_2201_06_indx);
-  append_Linked_List(&my_SDO_List, res_2201_06_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2201_06_indx),220106);
+  temp = SDO(res_2201_06_indx,SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2201_06_indx),0x220106,NULL,0x01,false);
+  append_Linked_List(&my_SDO_List, &temp);
 #endif
 
 #ifdef res_2103_06
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2103_06_indx)) = res_2103_06;
   //Serial.println(res_2103_06_indx);
-  append_Linked_List(&my_SDO_List, res_2103_06_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2103_06_indx),210306);
+  temp = SDO(res_2103_06_indx,SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2103_06_indx),0x210306,NULL,0x01,false);
+  append_Linked_List(&my_SDO_List, &temp);
 #endif
 
 #ifdef res_2103_02
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2103_02_indx)) = res_2103_02;
   //Serial.println(res_2103_02_indx);
-  append_Linked_List(&my_SDO_List, res_2103_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2103_02_indx),210302);
+  temp = SDO(res_2103_02_indx,SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2103_02_indx),0x210302,NULL,0x01,false);
+  append_Linked_List(&my_SDO_List, &temp);
 #endif
 
 #ifdef res_2104_02
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2104_02_indx)) = res_2104_02;
   //Serial.println(res_2104_02_indx);
-  append_Linked_List(&my_SDO_List, res_2104_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2104_02_indx),210402);
+  temp = SDO(res_2104_02_indx,SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2104_02_indx),0x210402,NULL,0x01,false);
+  append_Linked_List(&my_SDO_List, &temp);
 #endif
 
 #ifdef res_2106_06
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2106_06_indx)) = res_2106_06;
   //Serial.println(res_2106_06_indx);
-  append_Linked_List(&my_SDO_List, res_2106_06_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2106_06_indx),210606);
+  temp = SDO(res_2106_06_indx,SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2106_06_indx),0x210606,NULL,0x01,false);
+  append_Linked_List(&my_SDO_List, &temp);
 #endif
 
 #ifdef res_2002_01
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2002_01_indx)) = res_2002_01;
   //Serial.println(res_2002_01_indx);
-  append_Linked_List(&my_SDO_List, res_2002_01_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2002_01_indx),200201);
+  temp = SDO(res_2002_01_indx,SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2002_01_indx),0x200201,NULL,0x01,false);
+  append_Linked_List(&my_SDO_List, &temp);
 #endif
 
 #ifdef res_2020_01
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2020_01_indx)) = res_2020_01;
   //Serial.println(res_2020_01_indx);
-  append_Linked_List(&my_SDO_List, res_2020_01_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2020_01_indx),202001);
+  temp = SDO(res_2020_01_indx,SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2020_01_indx),0x202001,NULL,0x01,false);
+  append_Linked_List(&my_SDO_List, &temp);
 #endif
 
 #ifdef res_2413_02
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2413_02_indx)) = res_2413_02;
   //Serial.println(res_2413_02_indx);
-  append_Linked_List(&my_SDO_List, res_2413_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2413_02_indx),241302);
+  temp = SDO(res_2413_02_indx,SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2413_02_indx),0x241302,NULL,0x01,false);
+  append_Linked_List(&my_SDO_List, &temp);
 #endif
 
 #ifdef res_2923_02
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2923_02_indx)) = res_2923_02;
   //Serial.println(res_2923_02_indx);
-  append_Linked_List(&my_SDO_List, res_2923_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2923_02_indx),292302);
+  temp = SDO(res_2923_02_indx,SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2923_02_indx),0x292302,NULL,0x01,false);
+  append_Linked_List(&my_SDO_List, &temp);
 #endif
 
 #ifdef res_2414_02
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2414_02_indx)) = res_2414_02;
   //Serial.println(res_2414_02_indx);
-  append_Linked_List(&my_SDO_List, res_2414_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2414_02_indx),241402);
+  temp = SDO(res_2414_02_indx,SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2414_02_indx),0x241402,NULL,0x01,false);
+  append_Linked_List(&my_SDO_List, &temp);
 #endif
 
 #ifdef res_2461_02
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2461_02_indx)) = res_2461_02;
   //Serial.println(res_2461_02_indx);
-  append_Linked_List(&my_SDO_List, res_2461_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2461_02_indx),246102);
+  temp = SDO(res_2461_02_indx,SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2461_02_indx),0x246102,NULL,0x01,false);
+  append_Linked_List(&my_SDO_List, &temp);
 #endif
 
 #ifdef res_2001_02 
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2001_02_indx)) = res_2001_02;
   //Serial.println(res_2001_02_indx);
-  append_Linked_List(&my_SDO_List, res_2001_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2001_02_indx),200102);
+  temp = SDO(res_2001_02_indx,SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2001_02_indx),0x200102,NULL,0x01,false);
+  append_Linked_List(&my_SDO_List, &temp);
 #endif
 
 #ifdef res_2001_03    
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2001_03_indx)) = res_2001_03;
   //Serial.println(res_2001_03_indx);
-  append_Linked_List(&my_SDO_List, res_2001_03_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2001_03_indx),200103);
+  temp = SDO(res_2001_03_indx,SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2001_03_indx),0x200103,NULL,0x01,false);
+  append_Linked_List(&my_SDO_List, &temp);
 #endif
 
 #ifdef res_2411_02
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2411_02_indx)) = res_2411_02;
   //Serial.println(res_2411_02_indx);
-  append_Linked_List(&my_SDO_List, res_2411_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2411_02_indx),241102);
+  temp = SDO(res_2411_02_indx,SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2411_02_indx),0x241102,NULL,0x01,false);
+  append_Linked_List(&my_SDO_List, &temp);
 #endif
 
 #ifdef res_2405_02
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2405_02_indx)) = res_2405_02;
-  //Serial.println(res_2405_02_indx);
-  append_Linked_List(&my_SDO_List, res_2405_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2405_02_indx),240502);
+  temp = SDO(res_2405_02_indx,SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2405_02_indx),0x240502,NULL,0x01,false);
+  append_Linked_List(&my_SDO_List, &temp);
 #endif
 
 #ifdef res_2402_02
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2402_02_indx)) = res_2402_02;
   //Serial.println(res_2402_02_indx);
-  append_Linked_List(&my_SDO_List, res_2402_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2402_02_indx),240202);
+  temp = SDO(res_2402_02_indx,SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2402_02_indx),0x240202,NULL,0x01,false);
+  append_Linked_List(&my_SDO_List, &temp);
 #endif
 
 #ifdef res_2405_07
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2405_07_indx)) = res_2405_07;
   //Serial.println(res_2405_07_indx);
-  append_Linked_List(&my_SDO_List, res_2405_07_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2405_07_indx),240507);
+  temp = SDO(res_2405_07_indx,SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2405_07_indx),0x240507,NULL,0x01,false);
+  append_Linked_List(&my_SDO_List, &temp);
 #endif
 
 #ifdef res_2460_02
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2460_02_indx)) = res_2460_02;
   //Serial.println(res_2460_02_indx);
-  append_Linked_List(&my_SDO_List, res_2460_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2460_02_indx),246002);
+  temp = SDO(res_2460_02_indx,SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2460_02_indx),0x246002,NULL,0x01,false);
+  append_Linked_List(&my_SDO_List, &temp);
 #endif
 
 #ifdef res_2404_02
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2404_02_indx)) = res_2404_02;
   //Serial.println(res_2404_02_indx);
-  append_Linked_List(&my_SDO_List, res_2404_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2404_02_indx),240402);
+  temp = SDO(res_2404_02_indx,SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2404_02_indx),0x240402,NULL,0x01,false);
+  append_Linked_List(&my_SDO_List, &temp);
 #endif
 
 #ifdef res_2401_02
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2401_02_indx)) = res_2401_02;
   //Serial.println(res_2401_02_indx);
-  append_Linked_List(&my_SDO_List, res_2401_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2401_02_indx),240102);
+  temp = SDO(res_2401_02_indx,SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2401_02_indx),0x240102,NULL,0x01,false);
+  append_Linked_List(&my_SDO_List, &temp);
 #endif
 
 #ifdef res_2403_02 
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2403_02_indx)) = res_2403_02;
   //Serial.println(res_2403_02_indx);
-  append_Linked_List(&my_SDO_List, res_2403_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2403_02_indx),240302);
+  temp = SDO(res_2403_02_indx,SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2403_02_indx),0x240302,NULL,0x01,false);
+  append_Linked_List(&my_SDO_List, &temp);
 #endif
 
 #ifdef res_2400_02    
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2400_02_indx)) = res_2400_02;
   //Serial.println(res_2400_02_indx);
-  append_Linked_List(&my_SDO_List, res_2400_02_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2400_02_indx),240002);
+  temp = SDO(res_2400_02_indx,SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2400_02_indx),0x240002,NULL,0x01,false);
+  append_Linked_List(&my_SDO_List, &temp);
 #endif
 
 #ifdef res_2403_07
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2403_07_indx)) = res_2403_07;
   //Serial.println(res_2403_07_indx);
-  append_Linked_List(&my_SDO_List, res_2403_07_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2403_07_indx),240307);
+  temp = SDO(res_2403_07_indx,SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2403_07_indx),0x240307,NULL,0x01,false);
+  append_Linked_List(&my_SDO_List, &temp);
 #endif
 
 #ifdef res_2404_07 
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2404_07_indx)) = res_2404_07;
   //Serial.println(res_2404_07_indx);
-  append_Linked_List(&my_SDO_List, res_2404_07_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2404_07_indx),240407);
+  temp = SDO(res_2404_07_indx,SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2404_07_indx),0x240407,NULL,0x01,false);
+  append_Linked_List(&my_SDO_List, &temp);
 #endif
 
 #ifdef res_2405_03
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2405_03_indx)) = res_2405_03;
   //Serial.println(res_2405_03_indx);
-  append_Linked_List(&my_SDO_List, res_2405_03_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2405_03_indx),240503);
+  temp = SDO(res_2405_03_indx,SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2405_03_indx),0x240503,NULL,0x01,false);
+  append_Linked_List(&my_SDO_List, &temp);
 #endif
 
 #ifdef res_2404_03
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2404_03_indx)) = res_2404_03;
   //Serial.println(res_2404_03_indx);
-  append_Linked_List(&my_SDO_List, res_2404_03_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2404_03_indx),240403);
+  temp = SDO(res_2404_03_indx,SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2404_03_indx),0x240403,NULL,0x01,false);
+  append_Linked_List(&my_SDO_List, &temp);
 #endif
 
 #ifdef res_2403_03
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2403_03_indx)) = res_2403_03;
   //Serial.println(res_2403_03_indx);
-  append_Linked_List(&my_SDO_List, res_2403_03_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2403_03_indx),240303);
+  temp = SDO(res_2403_03_indx,SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2403_03_indx),0x240303,NULL,0x01,false);
+  append_Linked_List(&my_SDO_List, &temp);
 #endif
 
 #ifdef res_2405_04
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2405_04_indx)) = res_2405_04;
   //Serial.println(res_2405_04_indx);
-  append_Linked_List(&my_SDO_List, res_2405_04_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2405_04_indx),240504);
+  temp = SDO(res_2405_04_indx,SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2405_04_indx),0x240504,NULL,0x01,false);
+  append_Linked_List(&my_SDO_List, &temp);
 #endif
 
 #ifdef res_2404_04
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2404_04_indx)) = res_2404_04;
   //Serial.println(res_2404_04_indx);
-  append_Linked_List(&my_SDO_List, res_2404_04_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2404_04_indx),240404);
+  temp = SDO(res_2404_04_indx,SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2404_04_indx),0x240404,NULL,0x01,false);
+  append_Linked_List(&my_SDO_List, &temp);
 #endif
 
 #ifdef res_2403_04
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2403_04_indx)) = res_2403_04;
   //Serial.println(res_2403_04_indx);
-  append_Linked_List(&my_SDO_List, res_2403_04_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2403_04_indx),240304);
+  temp = SDO(res_2403_04_indx,SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2403_04_indx),0x240304,NULL,0x01,false);
+  append_Linked_List(&my_SDO_List, &temp);
 #endif
 
 #ifdef res_2402_07
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2402_07_indx)) = res_2402_07;
   //Serial.println(res_2402_07_indx);
-  append_Linked_List(&my_SDO_List, res_2402_07_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2402_07_indx),240207);
+  temp = SDO(res_2402_07_indx,SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2402_07_indx),0x240207,NULL,0x01,false);
+  append_Linked_List(&my_SDO_List, &temp);
 #endif
 
 #ifdef res_2401_07
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2401_07_indx)) = res_2401_07;
   //Serial.println(res_2401_07_indx);
-  append_Linked_List(&my_SDO_List, res_2401_07_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2401_07_indx),240107);
+  temp = SDO(res_2401_07_indx,SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2401_07_indx),0x240107,NULL,0x01,false);
+  append_Linked_List(&my_SDO_List, &temp);
 #endif
 
 #ifdef res_2400_07
   *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2400_07_indx)) = res_2400_07;
   //Serial.println(res_2400_07_indx);
-  append_Linked_List(&my_SDO_List, res_2400_07_indx, SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2400_07_indx),240007);
+  temp = SDO(res_2400_07_indx,SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*res_2400_07_indx),0x240007,NULL,0x01,false);
+  append_Linked_List(&my_SDO_List, &temp);
+#endif
+
+#ifdef Truck_ID
+
+  // create object SDO Truck_ID of length 0x20 = 32 and segmented = true
+  temp = SDO(Truck_ID_indx,SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*Truck_ID_indx),0x200204,NULL,0x20,true);
+  String truck_id_temp = String(Truck_ID);
+  //Serial.println("Hier");
+  //Serial.println(ceil(temp.length / 4.0));
+  
+  for (uint8_t i = 0; i < ceil(temp.length / 4.0); i++){
+    String temp_char = truck_id_temp.substring(i*4,i*4+4);  // get 4 letters
+    //Serial.print(i);Serial.print(":");
+    //Serial.println(temp_char);
+    unsigned char buf[4];
+    temp_char.getBytes(buf, 4);    
+    uint32_t to_save = (buf[0] << 24) + (buf[1] << 16) + (buf[2] << 8) + buf[3];
+    //Serial.println(to_save, HEX);
+    *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*(Truck_ID_indx + i))) = to_save;
+  }
+  
+  append_Linked_List(&my_SDO_List, &temp);
 #endif
 
   
@@ -898,7 +1113,7 @@ void Trd_internal_init(can_t *obj){
   /***
    * Config Timestamp counter
   ***/
-  if (HAL_FDCAN_ConfigTimestampCounter(&obj->CanHandle, FDCAN_TIMESTAMP_PRESC_1) != HAL_OK){
+  if (HAL_FDCAN_ConfigTimestampCounter(&obj->CanHandle, FDCAN_TIMESTAMP_PRESC_2) != HAL_OK){
     Serial.println("HAL_FDCAN_ConfigTimestampCounter error!");
   } else {
     Serial.println("HAL_FDCAN_ConfigTimestampCounter OK!");
@@ -1000,6 +1215,7 @@ int my_can_write(can_t *obj, CAN_Message msg, int cc){
   TxHeader.TxEventFifoControl = FDCAN_STORE_TX_EVENTS;
   TxHeader.MessageMarker = 0;
 
+
   if (HAL_FDCAN_AddMessageToTxFifoQ(&(obj->CanHandle), &TxHeader, msg.data) != HAL_OK){
     return 0;
   }
@@ -1051,10 +1267,10 @@ int my_can_filter(can_t *obj, uint32_t id, uint32_t mask, CANFormat format, int3
   if (format == CANStandard){
     sFilterConfig.IdType = FDCAN_STANDARD_ID;
     sFilterConfig.FilterIndex = handle;    
-    sFilterConfig.FilterType = FDCAN_FILTER_MASK;
+    sFilterConfig.FilterType = FDCAN_FILTER_RANGE; // FDCAN_FILTER_MASK
     sFilterConfig.FilterConfig = FDCAN_FILTER_TO_RXFIFO0;
-    sFilterConfig.FilterID1 = id;
-    sFilterConfig.FilterID2 = mask;
+    sFilterConfig.FilterID1 = 0x600;
+    sFilterConfig.FilterID2 = 0x699;
   } else if (format == CANExtended){
     sFilterConfig.IdType = FDCAN_EXTENDED_ID;
     sFilterConfig.FilterIndex = handle;    
@@ -1077,15 +1293,17 @@ int my_can_filter(can_t *obj, uint32_t id, uint32_t mask, CANFormat format, int3
     Serial.println("HAL_FDCAN_ConfigGlobalFilter OK!");
   }
 
+  
   if (HAL_FDCAN_ConfigFilter(&obj->CanHandle, &sFilterConfig) != HAL_OK){
     Serial.println("HAL_FDCAN_ConfigFilter error");
   } else {
     Serial.println("HAL_FDCAN_ConfigFilter OK");
   }
+  
 
    /** Enable Interrupt
    * **/
-  if (HAL_FDCAN_ActivateNotification(&my_can.CanHandle, FDCAN_IT_RX_FIFO0_NEW_MESSAGE | FDCAN_IT_TIMEOUT_OCCURRED | FDCAN_IT_TIMESTAMP_WRAPAROUND, 0xFFFF) != HAL_OK){
+  if (HAL_FDCAN_ActivateNotification(&my_can.CanHandle, FDCAN_IT_RX_FIFO0_NEW_MESSAGE | FDCAN_IT_TIMEOUT_OCCURRED | FDCAN_IT_TIMESTAMP_WRAPAROUND | FDCAN_IT_TX_COMPLETE, 0xFFFF) != HAL_OK){
     //Error_Handler();
     Serial.println("HAL_FDCAN_ActivateNotification error!");
   } else {
@@ -1207,9 +1425,9 @@ void FDCAN1_IT0_IRQHandler(void){
 
 
 void HAL_FDCAN_TxBufferCompleteCallback(FDCAN_HandleTypeDef *hfdcan, uint32_t BufferIndexes){
-  
-  Serial.println("Message Sent!");
+  sendMsg = true;
 }
+
 
 /*
 void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs){
@@ -1289,25 +1507,26 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
     if (HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &RxHeader, RxData) != HAL_OK){
       Error_Handler();
       //Serial.println("HAL_FDCAN_GetRxMessage error!");
-    } else {
-      
+    } else {      
       // check action 
-        // READ
-      if ((RxData[0] & 0xF0) == 0x40){        
+        // READ COMMAND
+      if (((RxData[0] & 0xF0) == 0x40) | ((RxData[0] & 0xF0) == 0x60) | segmented){        
         read_parameter();        
-      } else if ((RxData[0] & 0xF0) == 0x60) {
-        // WRITE
+        receiveMsg = true;
+      } else if ((RxData[0] & 0xF0) == 0x20) {
+        // WRITE COMMAND
         write_parameter();  
       }
+
+      //
 
       if (my_can_write(&my_can, CANMessage(prepare_ID(RxHeader.Identifier),TxData,8), 8)){
       } else {
         Error_Handler();
       }
+            
       
       
-      //Serial.println("Received msg!");
-      receiveMsg = true;
     }
 
     // DO SOMETHING
@@ -1322,15 +1541,20 @@ void HAL_FDCAN_TimeoutOccurredCallback(FDCAN_HandleTypeDef *hfdcan){
 void HAL_FDCAN_TimestampWraparoundCallback(FDCAN_HandleTypeDef *hfdcan){
   timestamp = true;
   int8_t fake_length = sizeof(fake);
-
-  for (int i = 0; i < sizeof(fake); i++){
-    if (my_can_write(&my_can, fake[i],1)){
-      
-    } else  {
-      Error_Handler();
-    }
-  }
   
+  // Send Fake Heart Beat message
+  for (int i = 0; i < sizeof(fake); i++){        
+    
+    //memcpy(TxData, fake[i].data, fake[i].len);
+    
+    if (my_can_write(&my_can, fake[i],sizeof(fake[i]))){
+       
+    } else {
+        Error_Handler();
+    } 
+       
+        
+  }  
 }
 
 
@@ -1375,36 +1599,16 @@ void setup() {
   Set_CAN_Pin(&my_can, PB_8, PH_13, 250000);  
 
   // Set external Loop Back mode
-  my_can_mode(&my_can, MODE_TEST_GLOBAL);
+  my_can_mode(&my_can, MODE_NORMAL);
   
   // set filter and start
   //int my_can_filter(can_t *obj, uint32_t id, uint32_t mask, CANFormat format, int32_t handle)
   my_can_filter(&my_can, 0x641, 0x7FF, CANStandard, 0);
 
   
-  // Fill sample buffer
-  //Fill_Buffer(aTxBuffer, 16, 0xC20F);
+  // Check new function        
 
-  
-  /* Write data to SRAM memory */
-  
-  /*for (uwIndex = 0; uwIndex < 16; uwIndex++){
-    *(__IO uint16_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + 2*uwIndex) = aTxBuffer[uwIndex];
-  }*/
 
-  /* Read data from SRAM memory */
-  /*for (uwIndex = 0; uwIndex < 16; uwIndex++){
-    aRxBuffer[uwIndex] = *(__IO uint16_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + 2*uwIndex);
-  }*/
-
-  /* Check data integrity */
-  /*
-   if (BufferCmp32b(aTxBuffer, aRxBuffer, 16)){
-    Serial.println("PASSED!");
-  } else {
-    Serial.println("FAILED!");
-  }*/
-  
 
   // Check Address of FDCAN RAM 
   Serial.println("-------------------------------------");
@@ -1420,6 +1624,9 @@ void setup() {
   Serial.println("-------------------------------------");
   Serial.println("|           Start loop              |");
   Serial.println("-------------------------------------");
+
+  //struct SDO* found1 = find_value(&my_SDO_List, 0x200204);
+  //Serial.print("Find :");Serial.println(found1->value,HEX);  Serial.println(found1->address,HEX);Serial.println(ceil(found1->length / 8.0));
 }
 
 /**
@@ -1432,35 +1639,47 @@ void HAL_FDCAN_TxEventFifoCallback(FDCAN_HandleTypeDef *hfdcan, uint32_t TxEvent
 
 void loop() {
   // put your main code here, to run repeatedly:
-  TxData[0] = 0x40;
-  TxData[1] = 0x20;
-  TxData[2] = 0x01;
-  TxData[3] = 0x00;
-  TxData[4] = 0x00;
-  TxData[5] = 0x00;
-  TxData[6] = 0x00;
-  TxData[7] = 0x00;
-  if (my_can_write(&my_can, CANMessage(0x641, TxData, 8), 8)){
-    //Serial.print("Sent:"); Serial.println(counter);
-    //counter++;
-  } else {
-    Error_Handler();
-  }
+
+  // Test
   
+
+
   if (interrupt){
     Serial.println("Interrupt");
     interrupt = false;
   }
 
   if (receiveMsg){
-    //if (BufferCmp8b(TxData, RxData, 8)){
-        if (my_can_read(&my_can, &msg, 0)){
-          Serial.print("Received:");Serial.println(msg.data[0]);
+          
+    
+    Serial.print("R :\t"); Serial.print(RxHeader.Identifier,HEX); Serial.print(" ");
+    
+    for (uint8_t i = 0; i < sizeof(RxData); i++){
+      Serial.print(" ");
+      Serial.print(RxData[i], HEX); 
+    }
+
+    Serial.println();
+
+    Serial.print("S :\t"); Serial.print(prepare_ID(RxHeader.Identifier),HEX); Serial.print(" ");
+
+        for (uint8_t i = 0; i < sizeof(TxData); i++){
+          Serial.print(" ");
+          Serial.print(TxData[i], HEX); 
         }
-      //Serial.println("Correct!");
-    //}
+    Serial.println();  
     
     receiveMsg = false;
+  }
+
+  if (sendMsg){
+      //if (TxHeader.Identifier != 0x322){
+          
+      //}
+          
+        
+      
+    sendMsg = false;
   }
 
   if (Rx_Fifo0_full){
@@ -1479,5 +1698,10 @@ void loop() {
     timestamp = false;
   }
 
-  
+  if (segmented){
+    //Serial.print("Segmented ");
+    //Serial.println(segment_count);
+  }
+ 
+  //HAL_Delay(1000);
 }
