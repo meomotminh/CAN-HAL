@@ -70,7 +70,7 @@ enum OUTPUT_TYPE {
     NONE
 }
 
-class Scenario {
+typedef struct Scenario {
 
 public:
     TRIGGER_TYPE _trigger_type;

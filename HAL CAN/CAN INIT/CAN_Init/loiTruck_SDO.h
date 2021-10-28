@@ -59,8 +59,9 @@ CAN_Message fake[24] = {
  * 0x2000 Komponenteninformation
  * **/
 
+
 #define res_2000_00         0x09000000 // Subindex 0 : Number of entries 
-#define  res_2000_00_indx   1
+#define res_2000_00_indx   1
 
 #define res_2000_01         0x51854962
 #define res_2000_01_indx    2
@@ -203,8 +204,10 @@ CAN_Message fake[24] = {
 #define res_2400_07         0x00000000 //---- Ist Teach-In Null
 #define res_2400_07_indx    48
 
-#define Truck_ID            "EFG      4xx5xx (2019)"
+#define Truck_ID            "ECE225        2015" // must be even number of char
 #define Truck_ID_indx       49          // +6 words ceil(22/4.0)
+
+#define Truck_null_word     ((uint32_t)0x00000000U)          // save some extra space symbol
 
 typedef struct SDO {
 public:    

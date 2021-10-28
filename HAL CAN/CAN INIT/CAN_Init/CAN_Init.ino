@@ -17,6 +17,7 @@ FDCAN_RxHeaderTypeDef RxHeader; // HAL RxHeader object
 FDCAN_TxHeaderTypeDef TxHeader; // HAL TxHeader object
 uint8_t RxData[8]; // Buffer to save RxData
 uint8_t TxData[8]; // Buffer to save TxData
+FDCAN_ErrorCountersTypeDef error_counter; // Error Counter
 
 /********BOOL VAR FOR TESTING********/
 bool receiveMsg = false;
@@ -49,9 +50,15 @@ uint16_t bit_swap = 0;
 
 
 
+
+// Redirect the console to the USB serial port.
+
+
+
 HAL_StatusTypeDef hal_can_init(FDCAN_HandleTypeDef *hfdcan){
     return (HAL_FDCAN_Init(hfdcan));
 }
+
 
 
 static uint32_t CRC_Hash_Function(uint32_t toHash){
@@ -63,6 +70,55 @@ static uint32_t CRC_Hash_Function(uint32_t toHash){
 }
 
 
+// check if it is in concerning range 0x601 -> 0x67F
+bool check_COB_ID_range(uint32_t COB_ID)
+{    
+    //Serial.println(TxHeader.Identifier, HEX);
+    if ((COB_ID) >= 0x601 && (COB_ID <= 0x67F))
+    {
+        return true;
+    } else return false;
+}
+
+/**
+ * function to calculate command ID
+ * **/
+uint8_t prepare_Command_ID(bool end_msg){
+  uint8_t command_ID = RxData[0] & 0xF0;
+
+      switch (command_ID) {
+        case 0x20: // initiate domain download            
+            command_ID = 0x60;  // Server reply                        
+            break;
+        case 0x00:  // download domain segment toggle = 0
+            command_ID |= 0x20;  // or to remain toggle bit
+            break;
+        case 0x40:  // initiate domain upload
+            if (RxData[2] == 0x24 && RxData[3] == 0x02)
+            {
+                command_ID |= 0x0B;    // follow Noris excel   
+            } else {
+                command_ID |= 0x03;  // n = 0; e = s = 1
+            }
+            
+            break;        
+        case 0x60:  // upload domain segment with toggle bit = 0
+            if (end_msg) {command_ID = 0x01;} else {command_ID = 0x00;}
+            break;
+        case 0x70:  // upload domain segment with toggle bit = 1
+            if (end_msg) {command_ID = 0x11;} else {command_ID = 0x10;}
+            break;
+        case 0xc0:  // initiate block download
+            command_ID = 0xA0;
+            break;
+        default : // Unknown
+            command_ID = 0x00;
+            break;
+        }    
+    
+    return command_ID;
+}
+
 /**
  * Write Parameter
  * **/
@@ -73,7 +129,7 @@ uint8_t write_parameter(void){
 
   if ( found != NULL){
     *(__IO uint32_t *)(found->address) = value;
-    TxData[0] = RxData[0] & 0xF0;
+    TxData[0] = prepare_Command_ID(false);
     TxData[1] = RxData[1];
     TxData[2] = RxData[2];
     TxData[3] = RxData[3];
@@ -82,7 +138,7 @@ uint8_t write_parameter(void){
     TxData[6] = 0x00;
     TxData[7] = 0x00;
   } else {
-    TxData[0] = RxData[0] & 0xF0;
+    TxData[0] = prepare_Command_ID(false);
     TxData[1] = RxData[1];
     TxData[2] = RxData[2];
     TxData[3] = RxData[3];
@@ -104,14 +160,17 @@ uint8_t write_parameter(void){
 uint8_t read_parameter(void){
   uint32_t tmp = (RxData[2] << 16) + (RxData[1] << 8) + RxData[3];
   struct SDO* found = find_value(&my_SDO_List, tmp);
-
+  uint8_t reply = 0;
+  
   //Serial.print("Value to find:");
   //Serial.println(tmp, HEX);
   
   //Serial.println(found->value, HEX);
-
-  if (found == NULL){
-    TxData[0] = RxData[0] & 0xF0;
+  if (check_COB_ID_range(RxHeader.Identifier)){
+    reply = 1;
+    Serial.println("In Range");
+    if (found == NULL){
+    TxData[0] = prepare_Command_ID(false);
     TxData[1] = RxData[1];
     TxData[2] = RxData[2];
     TxData[3] = RxData[3];
@@ -120,7 +179,8 @@ uint8_t read_parameter(void){
     TxData[6] = 0x00;
     TxData[7] = 0x00;
     found_parameter = false;
-    return 0;
+
+    
   } else {
     //Serial.println("Hier"); 
     // if segmented or not
@@ -132,7 +192,7 @@ uint8_t read_parameter(void){
         bit_swap = 0;
         rest_char = 0;
 
-        TxData[0] = RxData[0] & 0xF0 + 1;   // to send data length
+        TxData[0] = 0x41;   // to send data length
         TxData[1] = RxData[1];
         TxData[2] = RxData[2];
         TxData[3] = RxData[3];
@@ -141,14 +201,15 @@ uint8_t read_parameter(void){
         TxData[6] = 0x00;
         TxData[7] = 0x00;
 
-        //Serial.println("*****FIRST SEGMENT****");
+        
 
         segment_count++;
       // normal message
-      } else if (segment_count <= ceil(found->length / 7.0)) { // each message send 7 bytes data
+      } else if ((segment_count <= (found->length / 7.0)) && ((RxData[0] == 0x60) | (RxData[0] == 0x70))) { // each message send 7 bytes data
         // get 2 word EFG_ 
         uint32_t read_from_SRAM_1st = *(__IO uint32_t *)(found->address + ((add_count++) * 4));
         uint32_t read_from_SRAM_2nd = *(__IO uint32_t *)(found->address + ((add_count++) * 4));
+        
         rest_count++;
         
         // 7 
@@ -168,7 +229,7 @@ uint8_t read_parameter(void){
           TxData[5] = read_from_SRAM_2nd >> 24;
           TxData[6] = read_from_SRAM_2nd >> 16;
           TxData[7] = read_from_SRAM_2nd >> 8;  
-          rest_char = read_from_SRAM_2nd << 24; // get the last byte
+          rest_char = read_from_SRAM_2nd & 0x000000FF; // get the last byte
           break;
         case 2:
           TxData[0] = bit_swap;  
@@ -179,7 +240,7 @@ uint8_t read_parameter(void){
           TxData[5] = read_from_SRAM_1st;
           TxData[6] = read_from_SRAM_2nd >> 24;
           TxData[7] = read_from_SRAM_2nd >> 16;  
-          rest_char = read_from_SRAM_2nd << 16; // get last 2 bytes
+          rest_char = read_from_SRAM_2nd & 0x0000FFFF; // get last 2 bytes
           break;
         case 3:
           TxData[0] = bit_swap;  
@@ -190,7 +251,7 @@ uint8_t read_parameter(void){
           TxData[5] = read_from_SRAM_1st >> 8;
           TxData[6] = read_from_SRAM_1st;
           TxData[7] = read_from_SRAM_2nd >> 24;  
-          rest_char = read_from_SRAM_2nd << 8; // get last 3 bytes
+          rest_char = read_from_SRAM_2nd & 0x00FFFFFF; // get last 3 bytes
           break;
         case 4:
           TxData[0] = bit_swap;  
@@ -219,7 +280,7 @@ uint8_t read_parameter(void){
 
         segment_count++;       
       // terminate message
-      } else {
+      } else if (segment_count > (found->length / 7.0)){
         TxData[0] = 0x07;   // terminate
         TxData[1] = 0x00;
         TxData[2] = 0x00;
@@ -231,13 +292,16 @@ uint8_t read_parameter(void){
 
         //Serial.println("*****FINAL SEGMENT****");
         segmented = false;        
+        segment_count = 0;
+        add_count = 0;
+        rest_count = 0;
       }
 
     // Not segmented      
     } else {
         uint32_t read_from_SRAM_1st = *(__IO uint32_t *)(found->address);        
 
-        TxData[0] = RxData[0] & 0xF0 ;   
+        TxData[0] = prepare_Command_ID(false);   
         TxData[1] = RxData[1];
         TxData[2] = RxData[2];
         TxData[3] = RxData[3];
@@ -249,10 +313,13 @@ uint8_t read_parameter(void){
 
     
   }
+  }
+  
+  
 
   //Serial.println("Hier");
   found_parameter = true;
-  return 1;
+  return reply;
 
 }
 
@@ -270,12 +337,20 @@ struct SDO* find_value(struct SDO** head_ref, uint32_t value){
   // traverse until the end
   while (last->next != NULL){
     if (last->value == value) 
-      {
-        return last;  
+      { 
+        break;
       } else {
         last = last->next;    
       }    
   }
+
+  if (last->value == value){
+    return last;
+  } else {
+    return NULL;
+  }
+
+  return last;
 
 }
 
@@ -685,7 +760,7 @@ struct SDO temp(0,0,0,NULL,0,false);
 #endif
 
 #ifdef Truck_ID
-
+  
   // create object SDO Truck_ID of length 0x20 = 32 and segmented = true
   temp = SDO(Truck_ID_indx,SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*Truck_ID_indx),0x200204,NULL,0x20,true);
   String truck_id_temp = String(Truck_ID);
@@ -694,14 +769,19 @@ struct SDO temp(0,0,0,NULL,0,false);
   
   for (uint8_t i = 0; i < ceil(temp.length / 4.0); i++){
     String temp_char = truck_id_temp.substring(i*4,i*4+4);  // get 4 letters
-    //Serial.print(i);Serial.print(":");
-    //Serial.println(temp_char);
-    unsigned char buf[4];
-    temp_char.getBytes(buf, 4);    
+    Serial.print(i);Serial.print(":");
+    Serial.println(temp_char);
+    byte buf[temp_char.length() + 1];
+    temp_char.getBytes(buf, temp_char.length() + 1);    
     uint32_t to_save = (buf[0] << 24) + (buf[1] << 16) + (buf[2] << 8) + buf[3];
-    //Serial.println(to_save, HEX);
+    Serial.println(to_save, HEX);
     *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*(Truck_ID_indx + i))) = to_save;
   }
+  uint8_t word_cnt = ceil(temp.length / 4.0);
+  *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*(Truck_ID_indx + word_cnt))) = Truck_null_word;
+  
+
+  
   
   append_Linked_List(&my_SDO_List, &temp);
 #endif
@@ -788,41 +868,7 @@ uint16_t prepare_ID(uint16_t ID_req){
   return (node_ID | 0x580);
 }
 
-uint8_t prepare_Command_ID(bool end_msg){
-  uint8_t command_ID = RxData[0] & 0xF0;
 
-      switch (command_ID) {
-        case 0x20: // initiate domain download            
-            command_ID = 0x60;  // Server reply                        
-            break;
-        case 0x00:  // download domain segment toggle = 0
-            command_ID |= 0x20;  // or to remain toggle bit
-            break;
-        case 0x40:  // initiate domain upload
-            if (RxData[2] == 0x24 && RxData[3] == 0x02)
-            {
-                command_ID |= 0x0B;    // follow Noris excel   
-            } else {
-                command_ID |= 0x03;  // n = 0; e = s = 1
-            }
-            
-            break;        
-        case 0x60:  // upload domain segment with toggle bit = 0
-            if (end_msg) {command_ID = 0x01;} else {command_ID = 0x00;}
-            break;
-        case 0x70:  // upload domain segment with toggle bit = 1
-            if (end_msg) {command_ID = 0x11;} else {command_ID = 0x10;}
-            break;
-        case 0xc0:  // initiate block download
-            command_ID = 0xA0;
-            break;
-        default : // Unknown
-            command_ID = 0x00;
-            break;
-        }    
-    
-    return command_ID;
-}
 
 //uint8_t prepare_Data
 
@@ -965,7 +1011,7 @@ while (!IS_FDCAN_NOMINAL_TSEG1(ntq / nominalPrescaler)){ // > 1 && < 256
   // Create CAN Handle init object
   obj->CanHandle.Init.FrameFormat = FDCAN_FRAME_CLASSIC;
   obj->CanHandle.Init.Mode = FDCAN_MODE_NORMAL;
-  obj->CanHandle.Init.AutoRetransmission = ENABLE;
+  obj->CanHandle.Init.AutoRetransmission = DISABLE;
   obj->CanHandle.Init.TransmitPause = ENABLE;
   obj->CanHandle.Init.ProtocolException = DISABLE;
   
@@ -1215,9 +1261,26 @@ int my_can_write(can_t *obj, CAN_Message msg, int cc){
   TxHeader.TxEventFifoControl = FDCAN_STORE_TX_EVENTS;
   TxHeader.MessageMarker = 0;
 
-
+  for (int i = 0; i < 8; i++) TxData[i] = msg.data[i];    // For print out later
+  
   if (HAL_FDCAN_AddMessageToTxFifoQ(&(obj->CanHandle), &TxHeader, msg.data) != HAL_OK){
+    // USING M4 to Serial print    
+    
+    
+    
     return 0;
+  }
+
+  if (!fake_heart_beat){
+      Serial.print("S :\t"); Serial.print(TxHeader.Identifier,HEX); Serial.print(" ");
+
+        
+      for (uint8_t i = 0; i < (TxHeader.DataLength >> 16); i++){
+        Serial.print(" ");
+        Serial.print(TxData[i], HEX); 
+      }
+
+      Serial.println();   
   }
 
   return 1;
@@ -1263,14 +1326,14 @@ int my_can_filter(can_t *obj, uint32_t id, uint32_t mask, CANFormat format, int3
   FDCAN_FilterTypeDef sFilterConfig = {0};
 
  
-
+  
   if (format == CANStandard){
     sFilterConfig.IdType = FDCAN_STANDARD_ID;
     sFilterConfig.FilterIndex = handle;    
     sFilterConfig.FilterType = FDCAN_FILTER_RANGE; // FDCAN_FILTER_MASK
     sFilterConfig.FilterConfig = FDCAN_FILTER_TO_RXFIFO0;
     sFilterConfig.FilterID1 = 0x600;
-    sFilterConfig.FilterID2 = 0x699;
+    sFilterConfig.FilterID2 = 0x799;
   } else if (format == CANExtended){
     sFilterConfig.IdType = FDCAN_EXTENDED_ID;
     sFilterConfig.FilterIndex = handle;    
@@ -1281,12 +1344,13 @@ int my_can_filter(can_t *obj, uint32_t id, uint32_t mask, CANFormat format, int3
   } else {
     return 0;
   }
-
+  
   /** Configure global filter: 
    *  Filter all remote frames with STD and EXT ID
    *  Reject non matching frames with STD ID and EXT ID
    * **/
-  if (HAL_FDCAN_ConfigGlobalFilter(&my_can.CanHandle, FDCAN_REJECT, FDCAN_REJECT, FDCAN_FILTER_REMOTE, FDCAN_FILTER_REMOTE) != HAL_OK){
+  
+  if (HAL_FDCAN_ConfigGlobalFilter(&my_can.CanHandle, FDCAN_ACCEPT_IN_RX_FIFO0, FDCAN_ACCEPT_IN_RX_FIFO0, FDCAN_FILTER_REMOTE, FDCAN_FILTER_REMOTE) != HAL_OK){
     //Error_Handler();
     Serial.println("HAL_FDCAN_ConfigGlobalFilter error!");
   } else {
@@ -1426,6 +1490,9 @@ void FDCAN1_IT0_IRQHandler(void){
 
 void HAL_FDCAN_TxBufferCompleteCallback(FDCAN_HandleTypeDef *hfdcan, uint32_t BufferIndexes){
   sendMsg = true;
+  
+
+  //sendMsg = false;  
 }
 
 
@@ -1503,32 +1570,9 @@ void SystemClock_Config(void){
  * **/
 void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs){
   if ((RxFifo0ITs & FDCAN_IT_RX_FIFO0_NEW_MESSAGE) != RESET){
-    /* Retrieve Rx message from Rx FIFO0 */
-    if (HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &RxHeader, RxData) != HAL_OK){
-      Error_Handler();
-      //Serial.println("HAL_FDCAN_GetRxMessage error!");
-    } else {      
-      // check action 
-        // READ COMMAND
-      if (((RxData[0] & 0xF0) == 0x40) | ((RxData[0] & 0xF0) == 0x60) | segmented){        
-        read_parameter();        
-        receiveMsg = true;
-      } else if ((RxData[0] & 0xF0) == 0x20) {
-        // WRITE COMMAND
-        write_parameter();  
-      }
 
-      //
-
-      if (my_can_write(&my_can, CANMessage(prepare_ID(RxHeader.Identifier),TxData,8), 8)){
-      } else {
-        Error_Handler();
-      }
-            
-      
-      
-    }
-
+    receiveMsg = true;
+    
     // DO SOMETHING
   }
 }
@@ -1540,21 +1584,8 @@ void HAL_FDCAN_TimeoutOccurredCallback(FDCAN_HandleTypeDef *hfdcan){
 
 void HAL_FDCAN_TimestampWraparoundCallback(FDCAN_HandleTypeDef *hfdcan){
   timestamp = true;
-  int8_t fake_length = sizeof(fake);
   
-  // Send Fake Heart Beat message
-  for (int i = 0; i < sizeof(fake); i++){        
-    
-    //memcpy(TxData, fake[i].data, fake[i].len);
-    
-    if (my_can_write(&my_can, fake[i],sizeof(fake[i]))){
-       
-    } else {
-        Error_Handler();
-    } 
-       
-        
-  }  
+  
 }
 
 
@@ -1580,6 +1611,9 @@ void setup() {
   
   // Low level initialization
   HAL_Init();
+
+  //REDIRECT_STDOUT_TO(Serial);
+
   
   
   // Config System Clock
@@ -1606,7 +1640,8 @@ void setup() {
   my_can_filter(&my_can, 0x641, 0x7FF, CANStandard, 0);
 
   
-  // Check new function        
+  // Setup ErrorCounter
+          
 
 
 
@@ -1627,60 +1662,86 @@ void setup() {
 
   //struct SDO* found1 = find_value(&my_SDO_List, 0x200204);
   //Serial.print("Find :");Serial.println(found1->value,HEX);  Serial.println(found1->address,HEX);Serial.println(ceil(found1->length / 8.0));
+
 }
 
 /**
  * Unused Interrupt
  * **/
 void HAL_FDCAN_TxEventFifoCallback(FDCAN_HandleTypeDef *hfdcan, uint32_t TxEventFifoITs){
-  //Serial.println("Sent message fifo");
+  
 }
 
 
 void loop() {
   // put your main code here, to run repeatedly:
 
-  // Test
-  
-
-
-  if (interrupt){
-    Serial.println("Interrupt");
-    interrupt = false;
+  if (HAL_FDCAN_IsRxBufferMessageAvailable(&my_can.CanHandle,0) == 1){
+    Serial.println("Rx new message ");
   }
-
+  
   if (receiveMsg){
-          
+
+     Serial.println("Receive mess");
     
+    
+    // Retrieve Rx message from Rx FIFO0 
+    if (HAL_FDCAN_GetRxMessage(&my_can.CanHandle, FDCAN_RX_FIFO0, &RxHeader, RxData) != HAL_OK){
+        Serial.println("Error Handler");
+        Error_Handler();
+      
+    } else {      
+      // check action 
+
+      // print out    
+    Serial.println("*****************************");
     Serial.print("R :\t"); Serial.print(RxHeader.Identifier,HEX); Serial.print(" ");
+
     
-    for (uint8_t i = 0; i < sizeof(RxData); i++){
+    
+    for (uint8_t i = 0; i < (RxHeader.DataLength >> 16); i++){
       Serial.print(" ");
       Serial.print(RxData[i], HEX); 
     }
 
-    Serial.println();
-
-    Serial.print("S :\t"); Serial.print(prepare_ID(RxHeader.Identifier),HEX); Serial.print(" ");
-
-        for (uint8_t i = 0; i < sizeof(TxData); i++){
-          Serial.print(" ");
-          Serial.print(TxData[i], HEX); 
-        }
     Serial.println();  
-    
+        
+        // READ COMMAND
+      if ((((RxData[0] & 0xF0) == 0x40) | ((RxData[0] & 0xF0) == 0x60) | segmented)){        
+          if (read_parameter()){
+              TxHeader.Identifier = prepare_ID(RxHeader.Identifier);
+              if (my_can_write(&my_can, CANMessage(TxHeader.Identifier,TxData,8), 8)){
+              
+              } else {
+                Error_Handler();
+              }            
+          }
+                                
+          
+                        
+      } else if ((RxData[0] & 0xF0) == 0x20) {
+        // WRITE COMMAND
+        //Serial.println("");
+        write_parameter();  
+
+        TxHeader.Identifier = prepare_ID(RxHeader.Identifier);
+          if (my_can_write(&my_can, CANMessage(TxHeader.Identifier,TxData,8), 8)){
+      
+          } else {
+            Error_Handler();
+          }  
+      }
+
+      
+    }
+
+     
+
+  
     receiveMsg = false;
   }
 
-  if (sendMsg){
-      //if (TxHeader.Identifier != 0x322){
-          
-      //}
-          
-        
-      
-    sendMsg = false;
-  }
+  
 
   if (Rx_Fifo0_full){
     Serial.println("FIFO full");
@@ -1693,10 +1754,26 @@ void loop() {
     timeout = false;
   }
 
-  if (timestamp){
-    //Serial.println("Timestamp wrap around");
-    timestamp = false;
+if (timestamp){
+  int8_t fake_length = sizeof(fake);
+  
+  fake_heart_beat = true;
+  // Send Fake Heart Beat message
+  for (int i = 0; i < sizeof(fake); i++){        
+    
+    //memcpy(TxData, fake[i].data, fake[i].len);
+    
+    if (my_can_write(&my_can, fake[i],sizeof(fake[i]))){
+       
+    } else {
+        Error_Handler();
+    } 
+       
+        
   }
+  fake_heart_beat = false; 
+  timestamp = false;
+}
 
   if (segmented){
     //Serial.print("Segmented ");
