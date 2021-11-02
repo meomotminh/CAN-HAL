@@ -1,7 +1,8 @@
 #include "mbed.h"
 #include <ThreadDebug.h>
 #include "loiTruck_SDO.h"
-#include <string>
+#include "Scenario.h"
+
 
 // For TRACE32 Debug
 //UsbDebugCommInterface debugComm(&SerialUSB);
@@ -48,26 +49,157 @@ uint8_t rest_count = 0;
 uint32_t rest_char = 0;
 uint16_t bit_swap = 0;
 
+/**********FOR RTC*************/
+RTC_HandleTypeDef hrtc;
+RTC_TimeTypeDef RTC_TimeRead;
+RTC_DateTypeDef RTC_DateRead;
+EXTI_HandleTypeDef hexti;
+EXTI_ConfigTypeDef ExtiConfig;
+bool alarm = false;
+
+/**********FOR SCENARIO*************/
+My_Function function_linear(0.0,0.0,1.0,1.0); 
+Scenario Scenario_1(IN_TIME_STAMP, OUT_NONE, NULL, 10, NULL, 0, &function_linear, 10);
+
+/**********FOR TIMER*************/
+TIM_HandleTypeDef htimer6;
 
 
+void TIMER6_Init(void){
+  htimer6.Instance = TIM6;
+  htimer6.Init.Prescaler = 24;
+  htimer6.Init.Period = 64000 - 1;
 
-// Redirect the console to the USB serial port.
-
-
-
-HAL_StatusTypeDef hal_can_init(FDCAN_HandleTypeDef *hfdcan){
-    return (HAL_FDCAN_Init(hfdcan));
+  if (HAL_TIM_Base_Init(&htimer6) != HAL_OK){
+    Serial.println("HAL_TIM_Base_Init error!");
+  }
 }
 
 
+void RTC_Init(void){
+    hrtc.Instance = RTC;
+    hrtc.Init.HourFormat = RTC_HOURFORMAT_24;
+    hrtc.Init.AsynchPrediv = 0x7F; 
+    hrtc.Init.SynchPrediv = 0xFF;
+    hrtc.Init.OutPut = RTC_OUTPUT_DISABLE;
+    hrtc.Init.OutPutPolarity = RTC_OUTPUT_POLARITY_LOW;
+    hrtc.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
 
-static uint32_t CRC_Hash_Function(uint32_t toHash){
-  uint32_t temp = toHash & 0xF8000000;  // get 5 bits
-  toHash = toHash << 5;
-  toHash = toHash ^ (temp >> 27);
-  toHash = toHash ^ Hash_Int;
-  return toHash;
+    if (HAL_RTC_Init(&hrtc) != HAL_OK){
+      Serial.println("error");
+    } else {
+      Serial.println("ok");
+    }
 }
+
+void HAL_RTC_MspInit(){
+    RCC_OscInitTypeDef  RCC_OscInitStruct;
+    RCC_PeriphCLKInitTypeDef RCC_RTCPeriClkInit;
+    
+    // turn on LSE
+    RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_LSE;
+    RCC_OscInitStruct.LSEState = RCC_LSE_ON;
+    RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
+
+    if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK){
+
+    }
+
+    // select LSE as RTCCLK
+    RCC_RTCPeriClkInit.PeriphClockSelection = RCC_PERIPHCLK_RTC;
+    RCC_RTCPeriClkInit.RTCClockSelection = RCC_RTCCLKSOURCE_LSE;
+
+    if (HAL_RCCEx_PeriphCLKConfig(&RCC_RTCPeriClkInit) != HAL_OK){
+
+    }
+
+    // Enable RTC Clock
+    __HAL_RCC_RTC_ENABLE();
+    
+
+    // enable EXTI Line 17 for RTC alarm
+    hexti.Line = EXTI_LINE_17;
+    ExtiConfig.Line = EXTI_LINE_17;
+    ExtiConfig.Mode = EXTI_MODE_INTERRUPT;
+    ExtiConfig.Trigger = EXTI_TRIGGER_RISING;
+    
+    if (HAL_EXTI_SetConfigLine(&hexti, &ExtiConfig) != HAL_OK){
+      Serial.println("HAL_EXTI_SetConfigLine error!");
+    } else {
+      Serial.println("HAL_EXTI_SetConfigLine OK!");
+    }
+
+
+    // enable RTC ALarm IRQ in the NVIC
+    NVIC_SetVector(RTC_Alarm_IRQn, (uint32_t)&RTC_Alarm_IRQHandler);
+    //NVIC_SetPriority(RTC_Alarm_IRQn,1,0);
+    NVIC_EnableIRQ(RTC_Alarm_IRQn);
+    
+   
+}
+
+void RTC_CalendarConfig(void){
+    RTC_TimeTypeDef     RTC_TimeInit;
+    RTC_DateTypeDef     RTC_DateInit;
+
+    RTC_TimeInit.Hours = 12;
+    RTC_TimeInit.Minutes = 45;
+    RTC_TimeInit.Seconds = 0;
+    RTC_TimeInit.TimeFormat = RTC_HOURFORMAT12_PM;
+
+    if (HAL_RTC_SetTime(&hrtc, &RTC_TimeInit, RTC_FORMAT_BIN) != HAL_OK){
+       Serial.println("error"); 
+    } else  {
+      Serial.println("OK");
+    }
+
+    RTC_DateInit.Date = 12;
+    RTC_DateInit.Month = RTC_MONTH_JUNE;
+    RTC_DateInit.Year = 18;
+    RTC_DateInit.WeekDay = RTC_WEEKDAY_TUESDAY;
+
+    if (HAL_RTC_SetDate(&hrtc, &RTC_DateInit, RTC_FORMAT_BIN)!= HAL_OK){
+      Serial.println("error");
+    } else  {
+      Serial.println("OK");
+    }
+    
+
+}
+
+void RTC_Alarm_IRQHandler(void){
+  //Serial.println("error");  
+    HAL_RTC_AlarmIRQHandler(&hrtc);
+}
+
+void HAL_RTC_AlarmAEventCallback(RTC_HandleTypeDef *hrtc){
+  alarm = true;
+}
+
+void RTC_AlarmConfig(uint8_t second){
+   Serial.println("Come Here!");
+   RTC_AlarmTypeDef AlarmA_Set;
+
+   memset(&AlarmA_Set,0,sizeof(AlarmA_Set));
+
+   //HAL_RTC_DeactivateAlarm(&hrtc,RTC_ALARM_A);
+
+   //xx:45:09
+   AlarmA_Set.Alarm = RTC_ALARM_A;
+   AlarmA_Set.AlarmTime.Minutes = 45;
+   AlarmA_Set.AlarmTime.Seconds = 10;
+   AlarmA_Set.AlarmMask = RTC_ALARMMASK_DATEWEEKDAY | RTC_ALARMMASK_HOURS | RTC_ALARMMASK_MINUTES;
+   AlarmA_Set.AlarmSubSecondMask = RTC_ALARMSUBSECONDMASK_NONE;
+   if ( HAL_RTC_SetAlarm_IT(&hrtc, &AlarmA_Set, RTC_FORMAT_BIN) != HAL_OK)
+   {
+     //Error_handler();
+     Serial.println("Error");
+   } else {
+     Serial.println("set alarm OK");
+   }
+  
+}
+
 
 
 // check if it is in concerning range 0x601 -> 0x67F
@@ -1640,7 +1772,11 @@ void setup() {
   my_can_filter(&my_can, 0x641, 0x7FF, CANStandard, 0);
 
   
-  // Setup ErrorCounter
+  // Timer
+  TIMER6_Init();
+
+  // start timer in IT mode
+  HAL_TIM_Base_Start_IT(&htimer6);
           
 
 
@@ -1662,6 +1798,14 @@ void setup() {
 
   //struct SDO* found1 = find_value(&my_SDO_List, 0x200204);
   //Serial.print("Find :");Serial.println(found1->value,HEX);  Serial.println(found1->address,HEX);Serial.println(ceil(found1->length / 8.0));
+
+
+    HAL_RTC_MspInit();
+    RTC_Init();
+
+    RTC_CalendarConfig();
+    //Serial.println("1");
+    RTC_AlarmConfig(10);
 
 }
 
@@ -1779,6 +1923,12 @@ if (timestamp){
     //Serial.print("Segmented ");
     //Serial.println(segment_count);
   }
- 
+  
+  if (alarm){
+    Serial.println("ALARM");
+    alarm = false;
+  } else {
+    //Serial.println("--------");
+  }
   //HAL_Delay(1000);
 }

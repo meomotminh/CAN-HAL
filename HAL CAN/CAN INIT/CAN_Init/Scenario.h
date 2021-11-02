@@ -55,36 +55,74 @@ typedef struct
 
 
 enum TRIGGER_TYPE {
-    TIME_TRIGGER,
-    EVENT_TRIGGER
-}
+    MY_TIME_TRIGGER,
+    MY_EVENT_TRIGGER
+};
+
+
 
 enum INPUT_TYPE {
-    TIME_STAMP,
-    CAN_MESSAGE,
-    NONE
-} 
+    IN_TIME_STAMP,
+    IN_CAN_MESSAGE,
+}; 
 
 enum OUTPUT_TYPE {
-    CAN_MESSAGE,
-    NONE
-}
+    OUT_TIME_STAMP,
+    OUT_CAN_MESSAGE,
+    OUT_FUNCTION,
+    OUT_NONE
+};
 
-typedef struct Scenario {
+typedef class My_Function {
+public:
+    double _a;
+    double _b;
+    double _c;
+    double _d;
+
+    // constructor
+    My_Function(double a, double b, double c, double d){
+      _a = a;
+      _b = b;
+      _c = c;
+      _d = d;
+    }
+
+    My_Function(){}
+    
+};
+
+typedef class Scenario {
 
 public:
-    TRIGGER_TYPE _trigger_type;
+    
     INPUT_TYPE _input_type;
     OUTPUT_TYPE _output_type;
 
     // input
-    CANMessage _input_CAN_message;
+    CAN_Message *_input_CAN_message;
     uint32_t _input_timestamp;
 
     // output
-    CANMessage _output_CAN_message;
-    
-}
+    CAN_Message *_output_CAN_message;
+    uint32_t _output_timestamp; // for delay
+    My_Function *_output_function; // for manipulating parameter
+
+    uint32_t _duration;
+
+    // Constructor
+    Scenario(INPUT_TYPE inp, OUTPUT_TYPE out, CAN_Message *input_CAN, uint32_t input_time,
+    CAN_Message *output_CAN, uint32_t output_time, My_Function *output_func, uint32_t dur){        
+        _input_type = inp;
+        _output_type = out;
+        _input_CAN_message = input_CAN;
+        _input_timestamp = input_time;
+        _output_CAN_message = output_CAN;
+        _output_timestamp = output_time;
+        _output_function = output_func;
+        _duration = dur;
+    }
+};
 
 
 
