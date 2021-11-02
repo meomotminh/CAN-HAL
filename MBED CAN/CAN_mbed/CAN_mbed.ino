@@ -11,6 +11,8 @@ UART_HandleTypeDef huart2;
 RTC_HandleTypeDef hrtc;
 RTC_TimeTypeDef RTC_TimeRead;
 RTC_DateTypeDef RTC_DateRead;
+EXTI_HandleTypeDef hexti;
+EXTI_ConfigTypeDef ExtiConfig;
 
 bool alarm = false;
 
@@ -86,6 +88,20 @@ void HAL_RTC_MspInit(){
     // Enable RTC Clock
     __HAL_RCC_RTC_ENABLE();
     
+
+    // enable EXTI Line 17 for RTC alarm
+    hexti.Line = EXTI_LINE_17;
+    ExtiConfig.Line = EXTI_LINE_17;
+    ExtiConfig.Mode = EXTI_MODE_INTERRUPT;
+    ExtiConfig.Trigger = EXTI_TRIGGER_RISING;
+    
+    if (HAL_EXTI_SetConfigLine(&hexti, &ExtiConfig) != HAL_OK){
+      Serial.println("HAL_EXTI_SetConfigLine error!");
+    } else {
+      Serial.println("HAL_EXTI_SetConfigLine OK!");
+    }
+
+
     // enable RTC ALarm IRQ in the NVIC
     NVIC_SetVector(RTC_Alarm_IRQn, (uint32_t)&RTC_Alarm_IRQHandler);
     //NVIC_SetPriority(RTC_Alarm_IRQn,1,0);
@@ -124,7 +140,7 @@ void RTC_CalendarConfig(void){
 }
 
 void RTC_Alarm_IRQHandler(void){
-  Serial.println("error");  
+  //Serial.println("error");  
     HAL_RTC_AlarmIRQHandler(&hrtc);
 }
 
@@ -199,7 +215,7 @@ void RTC_AlarmConfig(uint8_t second){
    AlarmA_Set.Alarm = RTC_ALARM_A;
    AlarmA_Set.AlarmTime.Minutes = 45;
    AlarmA_Set.AlarmTime.Seconds = 10;
-   AlarmA_Set.AlarmMask = RTC_ALARMMASK_SECONDS;
+   AlarmA_Set.AlarmMask = RTC_ALARMMASK_DATEWEEKDAY | RTC_ALARMMASK_HOURS | RTC_ALARMMASK_MINUTES;
    AlarmA_Set.AlarmSubSecondMask = RTC_ALARMSUBSECONDMASK_NONE;
    if ( HAL_RTC_SetAlarm_IT(&hrtc, &AlarmA_Set, RTC_FORMAT_BIN) != HAL_OK)
    {
@@ -252,6 +268,7 @@ void loop(){
 
   if (alarm){
     Serial.println("ALARM");
+    alarm = false;
   } else {
     //Serial.println("--------");
   }
