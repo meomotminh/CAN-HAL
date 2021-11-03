@@ -7,6 +7,8 @@
 
 using namespace mbed;
 
+TIM_HandleTypeDef htimer6;
+
 UART_HandleTypeDef huart2;
 RTC_HandleTypeDef hrtc;
 RTC_TimeTypeDef RTC_TimeRead;
@@ -16,16 +18,72 @@ EXTI_ConfigTypeDef ExtiConfig;
 
 bool alarm = false;
 
-void printmsg(char *format,...){
-    char str[80];
+/************************************************************************/
+/*                            TIMER SECTION                             */
+/************************************************************************/
 
-    // extract the argument list using VA apis
-    va_list args;
-    va_start(args, format);
-    vsprintf(str, format, args);
 
-    HAL_UART_Transmit(&huart2, (uint8_t *)str, strlen(str), HAL_MAX_DELAY);
-    va_end(args);
+void TIMER6_Init(void){
+  
+  // enable TIM interface clock
+  __HAL_RCC_TIM6_CLK_ENABLE();
+  
+  htimer6.Instance = TIM6; // Basic Timer
+  htimer6.Init.Prescaler = 24;
+  htimer6.Init.Period = 500;
+  htimer6.Init.CounterMode = TIM_COUNTERMODE_UP;
+  //htimer6.Init.ClockDivision = TIM_CLOCK_DIVISION_DIV1;
+
+  
+  
+
+  // initialize the TIM low level resources 
+  if (HAL_TIM_Base_Init(&htimer6) != HAL_OK){
+    SerialUSB.println("HAL_TIM_Base_Init error!");
+  } else {
+    SerialUSB.println("HAL_TIM_Base_Init OK!");
+  }
+
+  
+  // Activate TIM peripheral 
+  if (HAL_TIM_Base_Start_IT(&htimer6) != HAL_OK){
+    SerialUSB.println("HAL_TIM_Base_Start_IT error!");
+  } else {
+    SerialUSB.println("HAL_TIM_Base_Start_IT OK!");
+  }
+
+  if (USE_HAL_TIM_REGISTER_CALLBACKS){
+    Serial.println("USE_HAL_TIM_REGISTER_CALLBACKS");
+  } else {
+    Serial.println("NO_USE_HAL_TIM_REGISTER_CALLBACKS");
+  }
+  
+
+  // register callback 
+  /*if (HAL_TIM_RegisterCallback(&htimer6, HAL_TIM_PERIOD_ELAPSED_CB_ID, &TIM6_DAC_IRQHandler) != HAL_OK){
+    Serial.println("HAL_TIM_RegisterCallback error");
+  } else {
+    Serial.println("HAL_TIM_RegisterCallback OK");
+  }*/
+  
+  // set TIMx priority
+  //NVIC_SetVector(TIM6_IRQn, (uint32_t)&TIM6_DAC_IRQHandler);
+  
+  //NVIC_EnableIRQ(TIM6_IRQn);
+  NVIC_SetVector(TIM6_DAC_IRQn, (uint32_t)&TIM6_DAC_IRQHandler);
+
+  // enable TIMx global interrupt
+  NVIC_EnableIRQ(TIM6_DAC_IRQn);
+
+}
+
+void TIM6_DAC_IRQHandler(void){
+  Serial.println("1");
+  HAL_TIM_IRQHandler(&htimer6);
+}
+
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
+  Serial.println("1");
 }
 
 void RTC_Init(void){
@@ -232,24 +290,10 @@ void setup(){
   Serial.begin(9600);
   while (!Serial);
   
-    HAL_Init();
+  HAL_Init();
 
-    //GPIO_Init();
+  TIMER6_Init();
 
-    //SystemClock_Config_HSE(SYS_CLOCK_FREQ_50_MHZ);
-
-    //UART2_Init();
-
-    HAL_RTC_MspInit();
-    RTC_Init();
-
-    RTC_CalendarConfig();
-    //Serial.println("1");
-    RTC_AlarmConfig(10);
-    //Serial.println("2");
-    //RTC_AlarmConfig(20);
-    
-    //RTC_AlarmConfig(30);
 }
 
 void loop(){

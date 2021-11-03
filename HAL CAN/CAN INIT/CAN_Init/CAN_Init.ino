@@ -5,7 +5,8 @@
 
 
 // For TRACE32 Debug
-//UsbDebugCommInterface debugComm(&SerialUSB);
+//USBSerial SerialUSB1(false, "DebugPort");
+//UsbDebugCommInterface debugComm(&SerialUSB1);
 //ThreadDebug           threadDebug(&debugComm, DEBUG_BREAK_IN_SETUP);
 
 using namespace mbed;
@@ -63,18 +64,106 @@ Scenario Scenario_1(IN_TIME_STAMP, OUT_NONE, NULL, 10, NULL, 0, &function_linear
 
 /**********FOR TIMER*************/
 TIM_HandleTypeDef htimer6;
+bool timer6 = false;
+
+/************************************************************************/
+/***********************      CODE AREA     *****************************/
+/************************************************************************/
+
+
+/************************************************************************/
+/*                            TIMER SECTION                             */
+/************************************************************************/
 
 
 void TIMER6_Init(void){
-  htimer6.Instance = TIM6;
-  htimer6.Init.Prescaler = 24;
-  htimer6.Init.Period = 64000 - 1;
 
-  if (HAL_TIM_Base_Init(&htimer6) != HAL_OK){
-    Serial.println("HAL_TIM_Base_Init error!");
+  RCC_ClkInitTypeDef clkconfig;
+  uint32_t uwTimClock, uwAPB1Prescaler = 0U;
+  uint32_t uwPrescalerValue = 0U;
+  uint32_t pFLatency;
+
+  
+
+  // enable TIM interface clock
+  __HAL_RCC_TIM6_CLK_ENABLE();
+  
+
+  
+
+
+  // get clock configuration
+  HAL_RCC_GetClockConfig(&clkconfig, &pFLatency);
+
+  // get APB1 prescaler
+  uwAPB1Prescaler = clkconfig.APB1CLKDivider;
+
+  // compute TIM6 clock
+  if (uwAPB1Prescaler == RCC_HCLK_DIV1){
+    uwTimClock = HAL_RCC_GetPCLK1Freq();
+  } else {
+    uwTimClock = 2*HAL_RCC_GetPCLK1Freq();
   }
+
+  //Serial.print("TIM6 Clock: "); Serial.println(uwTimClock);
+
+  // compute the prescaler value to have TIM6 counter clock equal to 1 MHz
+  uwPrescalerValue = (uint32_t) ((uwTimClock / 1000000U) - 1U);
+
+  // initialize TIM6
+  htimer6.Instance = TIM6; // Basic Timer
+
+  /*
+    Initialize TIMx peripheral as follow
+    Period = [(TIM6CLK / 1000) - 1]
+    Prescaler = (uwTimclock / 1000000 - 1)
+    ClockDivision = 0
+
+  */
+  htimer6.Init.Period = (1000000U / 1000U) - 1;
+  htimer6.Init.Prescaler = uwPrescalerValue;
+  htimer6.Init.CounterMode = TIM_COUNTERMODE_UP;
+  
+  // initialize the TIM low level resources 
+  if (HAL_TIM_Base_Init(&htimer6) != HAL_OK){
+    //Serial.println("HAL_TIM_Base_Init error!");
+  } else {    
+    //Serial.println("HAL_TIM_Base_Init OK!");
+  }
+
+  
+  // Activate TIM peripheral 
+  if (HAL_TIM_Base_Start_IT(&htimer6) != HAL_OK){
+    //Serial.println("HAL_TIM_Base_Start_IT error!");
+  } else {
+    //Serial.println("HAL_TIM_Base_Start_IT OK!");
+  }
+
+  NVIC_SetVector(TIM6_DAC_IRQn, (uint32_t)&TIM6_DAC_IRQHandler);
+  HAL_NVIC_SetPriority(TIM6_DAC_IRQn, 14U, 0U);
+  // enable TIMx global interrupt
+  HAL_NVIC_EnableIRQ(TIM6_DAC_IRQn);
+
 }
 
+void TIM6_DAC_IRQHandler(void){
+  //Serial.println("1");
+  HAL_TIM_IRQHandler(&htimer6);
+}
+
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
+  //Serial.println("1");
+  // only trigger when alarm set
+  if (alarm){
+    timer6 = true;
+  } 
+  
+}
+
+
+/************************************************************************/
+/*                            RTC SECTION                               */
+/************************************************************************/
 
 void RTC_Init(void){
     hrtc.Instance = RTC;
@@ -86,9 +175,9 @@ void RTC_Init(void){
     hrtc.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
 
     if (HAL_RTC_Init(&hrtc) != HAL_OK){
-      Serial.println("error");
+      Serial.println("HAL_RTC_Init error!");
     } else {
-      Serial.println("ok");
+      Serial.println("HAL_RTC_Init OK!");
     }
 }
 
@@ -133,9 +222,7 @@ void HAL_RTC_MspInit(){
     // enable RTC ALarm IRQ in the NVIC
     NVIC_SetVector(RTC_Alarm_IRQn, (uint32_t)&RTC_Alarm_IRQHandler);
     //NVIC_SetPriority(RTC_Alarm_IRQn,1,0);
-    NVIC_EnableIRQ(RTC_Alarm_IRQn);
-    
-   
+    NVIC_EnableIRQ(RTC_Alarm_IRQn);   
 }
 
 void RTC_CalendarConfig(void){
@@ -148,9 +235,9 @@ void RTC_CalendarConfig(void){
     RTC_TimeInit.TimeFormat = RTC_HOURFORMAT12_PM;
 
     if (HAL_RTC_SetTime(&hrtc, &RTC_TimeInit, RTC_FORMAT_BIN) != HAL_OK){
-       Serial.println("error"); 
+       Serial.println("HAL_RTC_SetTime error!"); 
     } else  {
-      Serial.println("OK");
+      Serial.println("HAL_RTC_SetTime OK!");
     }
 
     RTC_DateInit.Date = 12;
@@ -159,13 +246,15 @@ void RTC_CalendarConfig(void){
     RTC_DateInit.WeekDay = RTC_WEEKDAY_TUESDAY;
 
     if (HAL_RTC_SetDate(&hrtc, &RTC_DateInit, RTC_FORMAT_BIN)!= HAL_OK){
-      Serial.println("error");
+      Serial.println("HAL_RTC_SetDate error!");
     } else  {
-      Serial.println("OK");
+      Serial.println("HAL_RTC_SetDate OK!");
     }
-    
-
 }
+
+
+
+
 
 void RTC_Alarm_IRQHandler(void){
   //Serial.println("error");  
@@ -173,11 +262,21 @@ void RTC_Alarm_IRQHandler(void){
 }
 
 void HAL_RTC_AlarmAEventCallback(RTC_HandleTypeDef *hrtc){
-  alarm = true;
+  // when alarm ring, enable timer interrupt and set alarm 5s later
+  if (!alarm){
+    // enable interrupt
+    TIMER6_Init();
+    RTC_AlarmConfig(12);
+    alarm = true;
+  } else {
+    alarm = false;
+  }
+  
+  
 }
 
 void RTC_AlarmConfig(uint8_t second){
-   Serial.println("Come Here!");
+   //Serial.println("Come Here!");
    RTC_AlarmTypeDef AlarmA_Set;
 
    memset(&AlarmA_Set,0,sizeof(AlarmA_Set));
@@ -187,19 +286,23 @@ void RTC_AlarmConfig(uint8_t second){
    //xx:45:09
    AlarmA_Set.Alarm = RTC_ALARM_A;
    AlarmA_Set.AlarmTime.Minutes = 45;
-   AlarmA_Set.AlarmTime.Seconds = 10;
+   AlarmA_Set.AlarmTime.Seconds = second;
    AlarmA_Set.AlarmMask = RTC_ALARMMASK_DATEWEEKDAY | RTC_ALARMMASK_HOURS | RTC_ALARMMASK_MINUTES;
    AlarmA_Set.AlarmSubSecondMask = RTC_ALARMSUBSECONDMASK_NONE;
    if ( HAL_RTC_SetAlarm_IT(&hrtc, &AlarmA_Set, RTC_FORMAT_BIN) != HAL_OK)
    {
      //Error_handler();
-     Serial.println("Error");
+     //Serial.println("Error");
    } else {
-     Serial.println("set alarm OK");
+     //Serial.println("set alarm OK");
    }
   
 }
 
+
+/************************************************************************/
+/*                          UTILITY SECTION                             */
+/************************************************************************/
 
 
 // check if it is in concerning range 0x601 -> 0x67F
@@ -542,6 +645,10 @@ static void Fill_Buffer(uint32_t *pBuffer, uint32_t uwBufferLength, uint16_t uwO
     pBuffer[tmpIndex] = tmpIndex + uwOffset;
   }
 }
+
+/************************************************************************/
+/*                             SRAM SECTION                             */
+/************************************************************************/
 
 uint8_t write_SDO_to_SRAM(void){
   uwIndex = 0;
@@ -967,34 +1074,6 @@ void init_SDO_object(void){
 }
 
 
-uint8_t prepare_Answer(void){
-  // check address
-  /*
-  uint32_t *temp_address = (uint32_t *) (BASE_ADD + (RxData[1] << 8) + (RxData[2] << 16) + (RxData[3]));
-  uint32_t temp_data = *temp_address;
-
-  switch (sizeof(temp_data))
-  {
-  case 4:
-    TxData[4] = (temp_data) >> 24;
-    TxData[5] = (temp_data & 0x00FF0000) >> 16;
-    TxData[6] = (temp_data & 0x0000FF00) >> 8;
-    TxData[7] = (temp_data & 0x000000FF);
-    break;
-  case 1:
-    TxData[4] = (temp_data) >> 24;
-    TxData[5] = 0x00;
-    TxData[6] = 0x00;
-    TxData[7] = 0x00;
-    break;
-  
-  default:
-    break;
-  }
-  */
-   
-}
-
 uint16_t prepare_ID(uint16_t ID_req){
   uint16_t node_ID = ID_req & 0x07F;
   return (node_ID | 0x580);
@@ -1018,22 +1097,9 @@ static uint32_t BufferCmp32b(uint32_t* pBuffer1, uint32_t* pBuffer2, uint16_t Bu
   return 1;
 }
 
-void HAL_MspInit(void){
-  // set up priority grouping of the arm cortex processor
-  //HAL_NVIC_SetPriorityGrouping(NVIC_PRIORITYGROUP_4);
-
-  // enable required system exceptions
-  //SCB->SHCSR |= 0x7 << 16; // usage fault, memory fault and bus fault system exceptions
-
-  // configure the priority for the system exceptions
-  //HAL_NVIC_SetPriority(MemoryManagement_IRQn, 0, 0);
-  //HAL_NVIC_SetPriority(BusFault_IRQn, 0, 0);
-  //HAL_NVIC_SetPriority(UsageFault_IRQn, 0, 0);
-
-  
-  //HAL_NVIC_SetPriority(FDCAN1_IT0_IRQn, 2, 0);
-  //HAL_NVIC_EnableIRQ(FDCAN1_IT0_IRQn);
-}
+/************************************************************************/
+/*                            FDCAN SECTION                             */
+/************************************************************************/
 
 
 void Set_Freq(can_t *obj, const can_pinmap_t *pinmap, int hz)
@@ -1726,28 +1792,15 @@ void Error_Handler(void){
 }
 
 void setup() {
-  Serial.begin(9600);
+  //Serial.begin(115200);
+  Serial.begin(115200);
   while (!Serial);
 
-  #ifdef FDCAN1
-    Serial.println("*********FDCAN1************");
-  #endif
-
-  #ifdef USE_HAL_FDCAN_REGISTER_CALLBACKS 
-    Serial.println("*****REGISTER-CALLBACK******");
-  #endif 
-  
-  #ifdef CAN_1
-    Serial.println("*********CAN1************");
-  #endif
   
   // Low level initialization
   HAL_Init();
 
-  //REDIRECT_STDOUT_TO(Serial);
 
-  
-  
   // Config System Clock
   //SystemClock_Config();
 
@@ -1772,12 +1825,7 @@ void setup() {
   my_can_filter(&my_can, 0x641, 0x7FF, CANStandard, 0);
 
   
-  // Timer
-  TIMER6_Init();
-
-  // start timer in IT mode
-  HAL_TIM_Base_Start_IT(&htimer6);
-          
+  
 
 
 
@@ -1807,13 +1855,9 @@ void setup() {
     //Serial.println("1");
     RTC_AlarmConfig(10);
 
-}
+    // Timer
+    
 
-/**
- * Unused Interrupt
- * **/
-void HAL_FDCAN_TxEventFifoCallback(FDCAN_HandleTypeDef *hfdcan, uint32_t TxEventFifoITs){
-  
 }
 
 
@@ -1923,12 +1967,22 @@ if (timestamp){
     //Serial.print("Segmented ");
     //Serial.println(segment_count);
   }
+
   
   if (alarm){
-    Serial.println("ALARM");
+    Serial.println("----------------ALARM--------------------");
     alarm = false;
   } else {
     //Serial.println("--------");
   }
+
+  /*
+  if (timer6){
+    Serial.println("Timer");
+    timer6 = false;
+  } else {
+    //Serial.println("--------");
+  }
+  */
   //HAL_Delay(1000);
 }
