@@ -125,6 +125,13 @@ public:
 };
 
 
+My_Function function_linear(0.0,0.0,1.0,1.0); 
+
+//Scenario Scenario_1(IN_TIME_STAMP, OUT_NONE, NULL, 10, NULL, 0, &function_linear, 10);
+static Scenario Scenario_1(IN_TIME_STAMP, OUT_NONE, NULL, 10, NULL, 0, &function_linear, 10);
+
+
+
 
 
 #endif
