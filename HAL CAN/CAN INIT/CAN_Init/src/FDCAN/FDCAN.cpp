@@ -301,7 +301,7 @@ void Trd_internal_init(can_t *obj){
  * and SimpleCAN github
  * 
  * **/
-int my_can_write(can_t *obj, CAN_Message msg, int cc){
+int my_can_write(can_t *obj, CAN_Message msg, int cc, LOITRUCK* loiTruck){
 /**
   typedef struct
   {
@@ -345,26 +345,26 @@ int my_can_write(can_t *obj, CAN_Message msg, int cc){
   UNUSED(cc);
 
   // Configure Tx buffer message
-  TxHeader.Identifier = msg.id;
+  loiTruck->TxHeader.Identifier = msg.id;
   if (msg.format == CANStandard){
     //Serial.println("Standard");
-    TxHeader.IdType = FDCAN_STANDARD_ID;
+    loiTruck->TxHeader.IdType = FDCAN_STANDARD_ID;
   } else {
-    TxHeader.IdType = FDCAN_EXTENDED_ID;
+    loiTruck->TxHeader.IdType = FDCAN_EXTENDED_ID;
   }
 
-  TxHeader.TxFrameType = FDCAN_DATA_FRAME;
-  TxHeader.DataLength = msg.len << 16;
+  loiTruck->TxHeader.TxFrameType = FDCAN_DATA_FRAME;
+  loiTruck->TxHeader.DataLength = msg.len << 16;
   
-  TxHeader.ErrorStateIndicator = FDCAN_ESI_ACTIVE;
-  TxHeader.BitRateSwitch = FDCAN_BRS_OFF;
-  TxHeader.FDFormat = FDCAN_CLASSIC_CAN;
-  TxHeader.TxEventFifoControl = FDCAN_STORE_TX_EVENTS;
-  TxHeader.MessageMarker = 0;
+  loiTruck->TxHeader.ErrorStateIndicator = FDCAN_ESI_ACTIVE;
+  loiTruck->TxHeader.BitRateSwitch = FDCAN_BRS_OFF;
+  loiTruck->TxHeader.FDFormat = FDCAN_CLASSIC_CAN;
+  loiTruck->TxHeader.TxEventFifoControl = FDCAN_STORE_TX_EVENTS;
+  loiTruck->TxHeader.MessageMarker = 0;
 
-  for (int i = 0; i < 8; i++) TxData[i] = msg.data[i];    // For print out later
+  for (int i = 0; i < 8; i++) loiTruck->TxData[i] = loiTruck->msg.data[i];    // For print out later
   
-  if (HAL_FDCAN_AddMessageToTxFifoQ(&(obj->CanHandle), &TxHeader, msg.data) != HAL_OK){
+  if (HAL_FDCAN_AddMessageToTxFifoQ(&(obj->CanHandle), &loiTruck->TxHeader, loiTruck->msg.data) != HAL_OK){
     // USING M4 to Serial print    
     
     
@@ -372,13 +372,13 @@ int my_can_write(can_t *obj, CAN_Message msg, int cc){
     return 0;
   }
 
-  if (!fake_heart_beat){
+  if (!loiTruck->fake_heart_beat){
       Serial.print("S :\t"); Serial.print(TxHeader.Identifier,HEX); Serial.print(" ");
 
         
-      for (uint8_t i = 0; i < (TxHeader.DataLength >> 16); i++){
+      for (uint8_t i = 0; i < (loiTruck->TxHeader.DataLength >> 16); i++){
         Serial.print(" ");
-        Serial.print(TxData[i], HEX); 
+        Serial.print(loiTruck->TxData[i], HEX); 
       }
 
       Serial.println();   
@@ -392,7 +392,7 @@ int my_can_write(can_t *obj, CAN_Message msg, int cc){
  *  from can_read of mbed OS Target STM
  * 
 **/
-int my_can_read(can_t *obj, CAN_Message *msg, int handle)
+int my_can_read(can_t *obj, CAN_Message *msg, int handle,LOITRUCK* loiTruck)
 {
   UNUSED(handle);
 
@@ -401,116 +401,25 @@ int my_can_read(can_t *obj, CAN_Message *msg, int handle)
   }
 
   FDCAN_RxHeaderTypeDef RxHeader = {0};
-  if (HAL_FDCAN_GetRxMessage(&obj->CanHandle, FDCAN_RX_FIFO0, &RxHeader, msg->data) != HAL_OK){
+  if (HAL_FDCAN_GetRxMessage(&obj->CanHandle, FDCAN_RX_FIFO0, &loiTruck->RxHeader, msg->data) != HAL_OK){
     //Serial.println("HAL_FDCAN_GetRxMessage error");
     return 0;
   }
   
-  if (RxHeader.IdType == FDCAN_STANDARD_ID){
+  if (loiTruck->RxHeader.IdType == FDCAN_STANDARD_ID){
     msg->format = CANStandard;
   } else {
     msg->format = CANExtended;
   }
-  msg->id = RxHeader.Identifier;
-  msg->type = (RxHeader.RxFrameType == FDCAN_DATA_FRAME) ? CANData : CANRemote;
-  msg->len = RxHeader.DataLength >> 16;
+  msg->id = loiTruck->RxHeader.Identifier;
+  msg->type = (loiTruck->RxHeader.RxFrameType == FDCAN_DATA_FRAME) ? CANData : CANRemote;
+  msg->len = loiTruck->RxHeader.DataLength >> 16;
 
   return 1;
 }
 
 
-/**
- * from can_filter of mbed OS Target STM
- * 
- * **/
-int my_can_filter(can_t *obj, uint32_t id, uint32_t mask, CANFormat format, int32_t handle){
-  FDCAN_FilterTypeDef sFilterConfig = {0};
 
- 
-  
-  if (format == CANStandard){
-    sFilterConfig.IdType = FDCAN_STANDARD_ID;
-    sFilterConfig.FilterIndex = handle;    
-    sFilterConfig.FilterType = FDCAN_FILTER_RANGE; // FDCAN_FILTER_MASK
-    sFilterConfig.FilterConfig = FDCAN_FILTER_TO_RXFIFO0;
-    sFilterConfig.FilterID1 = 0x600;
-    sFilterConfig.FilterID2 = 0x799;
-  } else if (format == CANExtended){
-    sFilterConfig.IdType = FDCAN_EXTENDED_ID;
-    sFilterConfig.FilterIndex = handle;    
-    sFilterConfig.FilterType = FDCAN_FILTER_MASK;
-    sFilterConfig.FilterConfig = FDCAN_FILTER_TO_RXFIFO0;
-    sFilterConfig.FilterID1 = id;
-    sFilterConfig.FilterID2 = mask;
-  } else {
-    return 0;
-  }
-  
-  /** Configure global filter: 
-   *  Filter all remote frames with STD and EXT ID
-   *  Reject non matching frames with STD ID and EXT ID
-   * **/
-  
-  if (HAL_FDCAN_ConfigGlobalFilter(&my_can.CanHandle, FDCAN_ACCEPT_IN_RX_FIFO0, FDCAN_ACCEPT_IN_RX_FIFO0, FDCAN_FILTER_REMOTE, FDCAN_FILTER_REMOTE) != HAL_OK){
-    //Error_Handler();
-    Serial.println("HAL_FDCAN_ConfigGlobalFilter error!");
-  } else {
-    Serial.println("HAL_FDCAN_ConfigGlobalFilter OK!");
-  }
-
-  
-  if (HAL_FDCAN_ConfigFilter(&obj->CanHandle, &sFilterConfig) != HAL_OK){
-    Serial.println("HAL_FDCAN_ConfigFilter error");
-  } else {
-    Serial.println("HAL_FDCAN_ConfigFilter OK");
-  }
-  
-
-   /** Enable Interrupt
-   * **/
-  if (HAL_FDCAN_ActivateNotification(&my_can.CanHandle, FDCAN_IT_RX_FIFO0_NEW_MESSAGE | FDCAN_IT_TIMEOUT_OCCURRED | FDCAN_IT_TIMESTAMP_WRAPAROUND | FDCAN_IT_TX_COMPLETE, 0xFFFF) != HAL_OK){
-    //Error_Handler();
-    Serial.println("HAL_FDCAN_ActivateNotification error!");
-  } else {
-    Serial.println("HAL_FDCAN_ActivateNotification OK!");
-  }
-
-
-  
-  /** Unregister Callback function ???
-  **/
-  
-  
-
-  // FINALLY START FDCAN
-
-  if (HAL_FDCAN_Start(&obj->CanHandle) != HAL_OK){
-    Serial.println("HAL_FDCAN_Start error\n");
-  } else {
-    Serial.println("Start success!");
-  }
-  
-  // FDCAN1 interrupt Init
-  NVIC_SetVector(FDCAN1_IT0_IRQn, (uint32_t)&FDCAN1_IT0_IRQHandler);
-  NVIC_EnableIRQ(FDCAN1_IT0_IRQn);
-
-
-  //Serial.println("FDCAN1 interrupt success");
-
-
-  /* Prepare Tx Header */
-  TxHeader.Identifier = 0x322;
-  TxHeader.IdType = FDCAN_STANDARD_ID;
-  TxHeader.TxFrameType = FDCAN_DATA_FRAME;
-  TxHeader.DataLength = FDCAN_DLC_BYTES_8;
-  TxHeader.ErrorStateIndicator = FDCAN_ESI_ACTIVE;
-  TxHeader.BitRateSwitch = FDCAN_BRS_OFF;
-  TxHeader.FDFormat = FDCAN_CLASSIC_CAN;
-  TxHeader.TxEventFifoControl = FDCAN_STORE_TX_EVENTS;
-  TxHeader.MessageMarker = 0;
-
-  return 1;
-}
 
 
 
@@ -581,60 +490,3 @@ int my_can_mode(can_t *obj, CanMode mode)
 
 
 
-// **********Interrupt******************
-void FDCAN1_IT0_IRQHandler(void){
-  //Serial.println("Interrupt!");
-  //interrupt = true;
-  HAL_FDCAN_IRQHandler(&my_can.CanHandle);
-}
-
-
-void HAL_FDCAN_TxBufferCompleteCallback(FDCAN_HandleTypeDef *hfdcan, uint32_t BufferIndexes){
-  sendMsg = true;
-  
-
-  //sendMsg = false;  
-}
-
-
-/*
-void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs){
-
- 
-   if (RxFifo0ITs == FDCAN_IT_RX_FIFO0_NEW_MESSAGE){  // = 1
-      receiveMsg = true;
-   } 
-
-   if (RxFifo0ITs == (FDCAN_IT_RX_FIFO0_FULL + FDCAN_IT_RX_FIFO0_NEW_MESSAGE)){ // new message + full = 5
-      Rx_Fifo0_full = true;
-   }
-
-   Rx_IT_Number = RxFifo0ITs;
-   
-   //counter = 0;
-  //Serial.println("Receive new message!");
-  
-}
-*/
-
-/**
- * Rx FIFO0 Callback
- * 
- * **/
-void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs){
-  if ((RxFifo0ITs & FDCAN_IT_RX_FIFO0_NEW_MESSAGE) != RESET){
-
-    receiveMsg = true;
-    
-    // DO SOMETHING
-  }
-}
-
-void HAL_FDCAN_TimeoutOccurredCallback(FDCAN_HandleTypeDef *hfdcan){
-  //timeout = true;
-}
-
-
-void HAL_FDCAN_TimestampWraparoundCallback(FDCAN_HandleTypeDef *hfdcan){
-  timestamp = true;  
-}
