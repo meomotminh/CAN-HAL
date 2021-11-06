@@ -54,6 +54,7 @@ typedef struct
 #include "mbed.h"
 
 
+
 enum TRIGGER_TYPE {
     MY_TIME_TRIGGER,
     MY_EVENT_TRIGGER
@@ -79,13 +80,15 @@ public:
     double _b;
     double _c;
     double _d;
+    uint32_t _SDO_value;
 
     // constructor
-    My_Function(double a, double b, double c, double d){
+    My_Function(double a, double b, double c, double d, uint32_t value){
       _a = a;
       _b = b;
       _c = c;
       _d = d;
+      _SDO_value = value;
     }
 
     My_Function(){}
@@ -109,10 +112,13 @@ public:
     My_Function *_output_function; // for manipulating parameter
 
     uint32_t _duration;
+    
+    Scenario* _next;
+
 
     // Constructor
     Scenario(INPUT_TYPE inp, OUTPUT_TYPE out, CAN_Message *input_CAN, uint32_t input_time,
-    CAN_Message *output_CAN, uint32_t output_time, My_Function *output_func, uint32_t dur){        
+    CAN_Message *output_CAN, uint32_t output_time, My_Function *output_func, uint32_t dur, Scenario* next){        
         _input_type = inp;
         _output_type = out;
         _input_CAN_message = input_CAN;
@@ -121,14 +127,19 @@ public:
         _output_timestamp = output_time;
         _output_function = output_func;
         _duration = dur;
+        _next = next;        
     }
 };
 
 
-My_Function function_linear(0.0,0.0,1.0,1.0); 
+static My_Function function_linear(0.0, 0.0, 1.0, 1.0, 0x240207);  // SDO_value_240207 = 0.0(t)³ + 0.0(t)² + 1.0(t) + 1.0 
 
-//Scenario Scenario_1(IN_TIME_STAMP, OUT_NONE, NULL, 10, NULL, 0, &function_linear, 10);
-static Scenario Scenario_1(IN_TIME_STAMP, OUT_NONE, NULL, 10, NULL, 0, &function_linear, 10);
+/* ---------------------------- DEFINE SCRENARIO ---------------------------- */
+static Scenario Scenario_2(IN_TIME_STAMP, OUT_NONE, NULL, 10, NULL, 0, &function_linear, 10, NULL);
+
+static Scenario Scenario_1(IN_TIME_STAMP, OUT_NONE, NULL, 10, NULL, 0, &function_linear, 10, &Scenario_2);
+
+
 
 
 
