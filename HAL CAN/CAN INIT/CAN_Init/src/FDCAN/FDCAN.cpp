@@ -364,15 +364,16 @@ int my_can_write(can_t *obj, CAN_Message msg, int cc, LOITRUCK* loiTruck){
 
   for (int i = 0; i < 8; i++) loiTruck->TxData[i] = loiTruck->msg.data[i];    // For print out later
   
-  if (HAL_FDCAN_AddMessageToTxFifoQ(&(obj->CanHandle), &loiTruck->TxHeader, loiTruck->msg.data) != HAL_OK){
-    // USING M4 to Serial print    
+  // check if ignore or delay or send_predefined
+  if (!loiTruck->ignore){
+    HAL_Delay(loiTruck->delay);
     
-    
-    
-    return 0;
-  }
+    if (HAL_FDCAN_AddMessageToTxFifoQ(&(obj->CanHandle), &loiTruck->TxHeader, loiTruck->msg.data) != HAL_OK){
+      // USING M4 to Serial print        
+      return 0;
+    }
 
-  if (!loiTruck->fake_heart_beat){
+    if (!loiTruck->fake_heart_beat){
       Serial.print("S :\t"); Serial.print(TxHeader.Identifier,HEX); Serial.print(" ");
 
         
@@ -382,7 +383,10 @@ int my_can_write(can_t *obj, CAN_Message msg, int cc, LOITRUCK* loiTruck){
       }
 
       Serial.println();   
+    }
   }
+
+  
 
   return 1;
 }

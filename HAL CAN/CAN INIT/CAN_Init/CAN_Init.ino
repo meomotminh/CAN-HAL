@@ -185,10 +185,7 @@ void HAL_RTC_AlarmAEventCallback(RTC_HandleTypeDef *hrtc){
     loiTruck.triggered = false; 
     HAL_RTC_DeactivateAlarm(&loiTruck.hrtc, RTC_ALARM_A);
     loiTruck.finish_Scenario = true;
-
-  }
-
-  
+  }  
 }
 
 void HAL_RTC_MspInit(void){
@@ -381,70 +378,86 @@ void Error_Handler(void){
 }
 
 void setup() {
-  //Serial.begin(115200);
-  Serial.begin(115200);
-  while (!Serial);
-
   
-  /* ------------------------ Low level initialization ------------------------ */
-  HAL_Init();
+  #ifdef CORE_CM7
+    bootM4();
+
+    Serial.begin(115200);
+    while (!Serial);
+
+    /* ------------------------ Low level initialization ------------------------ */
+    HAL_Init();
 
 
-  /* --------------------------- Config System Clock -------------------------- */
-  //SystemClock_Config();
+    /* --------------------------- Config System Clock -------------------------- */
+    //SystemClock_Config();
 
-  /* ----------------------------- Init SDO object ---------------------------- */
-  init_SDO_object(&loiTruck);
+    /* ----------------------------- Init SDO object ---------------------------- */
+    init_SDO_object(&loiTruck);
 
-  /* --------------------- Display SDO object linked list --------------------- */
-  display_Linked_List(&loiTruck);
+    /* --------------------- Display SDO object linked list --------------------- */
+    display_Linked_List(&loiTruck);
 
-  /* ----------------------- Configure FDCAN peripheral ----------------------- */
-  //FDCAN_Config();
-  
-  
-  /* ----------------------- initiate can_t _can object ----------------------- */
-  Set_CAN_Pin(&loiTruck.my_can, PB_8, PH_13, 250000);  
-
-  /* ----------------------- Set external Loop Back mode ---------------------- */
-  my_can_mode(&loiTruck.my_can, MODE_NORMAL);
-  
-  /* -------------------------- set filter and start -------------------------- */
-  //int my_can_filter(can_t *obj, uint32_t id, uint32_t mask, CANFormat format, int32_t handle)
-  my_can_filter(&loiTruck.my_can, 0x641, 0x7FF, CANStandard, 0, &loiTruck);
+    /* ----------------------- Configure FDCAN peripheral ----------------------- */
+    //FDCAN_Config();
 
 
-  /* ----------------------- Check Address of FDCAN RAM ----------------------- */
-  Serial.println("-------------------------------------");
-  Serial.println("|           Check Address            |");
-  Serial.println("-------------------------------------");
+    /* ----------------------- initiate can_t _can object ----------------------- */
+    Set_CAN_Pin(&loiTruck.my_can, PB_8, PH_13, 250000);  
 
-  Serial.print("Message RxFIFO0 Start Address:");  Serial.println(loiTruck.my_can.CanHandle.msgRam.RxFIFO0SA,HEX);
-  Serial.print("Message RxFIFO1 Start Address:");  Serial.println(loiTruck.my_can.CanHandle.msgRam.RxFIFO1SA,HEX);
-  Serial.print("Message Rx Buffer Start Address:");  Serial.println(loiTruck.my_can.CanHandle.msgRam.RxBufferSA,HEX);
-  Serial.print("Message RAM End Address:");  Serial.println(loiTruck.my_can.CanHandle.msgRam.EndAddress,HEX);
+    /* ----------------------- Set external Loop Back mode ---------------------- */
+    my_can_mode(&loiTruck.my_can, MODE_NORMAL);
 
-  
-  Serial.println("-------------------------------------");
-  Serial.println("|           Start loop              |");
-  Serial.println("-------------------------------------");
+    /* -------------------------- set filter and start -------------------------- */
+    //int my_can_filter(can_t *obj, uint32_t id, uint32_t mask, CANFormat format, int32_t handle)
+    my_can_filter(&loiTruck.my_can, 0x641, 0x7FF, CANStandard, 0, &loiTruck);
 
-  //struct SDO* found1 = find_value(&my_SDO_List, 0x200204);
-  //Serial.print("Find :");Serial.println(found1->value,HEX);  Serial.println(found1->address,HEX);Serial.println(ceil(found1->length / 8.0));
-
-
-    HAL_RTC_MspInit();
+        HAL_RTC_MspInit();
     RTC_Init(&loiTruck);
     
     RTC_CalendarConfig(&loiTruck);
     //Serial.println("1");
     
 
-  /* -------------------------------- Scenario -------------------------------- */
-  if (find_Scenario(&loiTruck)){
-    Serial.println("Found First Scenario");
-    RTC_AlarmConfig(&loiTruck);
-  }
+    /* -------------------------------- Scenario -------------------------------- */
+    if (find_Scenario(&loiTruck)){
+      Serial.println("Found First Scenario");
+      RTC_AlarmConfig(&loiTruck);
+    }
+
+    /* ----------------------- Check Address of FDCAN RAM ----------------------- */
+    Serial.println("-------------------------------------");
+    Serial.println("|           Check Address            |");
+    Serial.println("-------------------------------------");
+
+    Serial.print("Message RxFIFO0 Start Address:");  Serial.println(loiTruck.my_can.CanHandle.msgRam.RxFIFO0SA,HEX);
+    Serial.print("Message RxFIFO1 Start Address:");  Serial.println(loiTruck.my_can.CanHandle.msgRam.RxFIFO1SA,HEX);
+    Serial.print("Message Rx Buffer Start Address:");  Serial.println(loiTruck.my_can.CanHandle.msgRam.RxBufferSA,HEX);
+    Serial.print("Message RAM End Address:");  Serial.println(loiTruck.my_can.CanHandle.msgRam.EndAddress,HEX);
+
+
+    Serial.println("-------------------------------------");
+    Serial.println("|           Start loop              |");
+    Serial.println("-------------------------------------");
+
+  #endif
+
+  
+
+
+  #ifdef CORE_CM4
+    Serial.begin(115200);
+    while (!Serial);
+  #endif
+  
+
+
+  
+
+  
+
+
+
 
       
     
@@ -455,10 +468,10 @@ void setup() {
 void loop() {
   /* --------------- put your main code here, to run repeatedly: -------------- */
 
-  if (HAL_FDCAN_IsRxBufferMessageAvailable(&loiTruck.my_can.CanHandle,0) == 1){
-    Serial.println("Rx new message ");
-  }
-  
+#ifdef CORE_CM7
+  /* -------------------------------------------------------------------------- */
+  /* ----------------------------- Read and Reply ----------------------------- */
+  /* -------------------------------------------------------------------------- */
   if (loiTruck.receiveMsg){
 
      Serial.println("Receive mess");
@@ -487,6 +500,7 @@ void loop() {
         
       /* ------------------------------ READ COMMAND ------------------------------ */
       if ((((loiTruck.RxData[0] & 0xF0) == 0x40) | ((loiTruck.RxData[0] & 0xF0) == 0x60) | loiTruck.segmented)){        
+          
           if (read_parameter(&loiTruck)){
               loiTruck.TxHeader.Identifier = prepare_ID(loiTruck.RxHeader.Identifier);
               if (my_can_write(&loiTruck.my_can, CANMessage(loiTruck.TxHeader.Identifier,loiTruck.TxData,8), 8, &loiTruck)){
@@ -495,12 +509,10 @@ void loop() {
                 Error_Handler();
               }            
           }
-                                
-          
-                        
+                                                                  
       } else if ((loiTruck.RxData[0] & 0xF0) == 0x20) {
         /* ------------------------------ WRITE COMMAND ----------------------------- */
-        //Serial.println("");
+        
         write_parameter(&loiTruck);  
 
         loiTruck.TxHeader.Identifier = prepare_ID(loiTruck.RxHeader.Identifier);
@@ -513,10 +525,7 @@ void loop() {
 
       
     }
-
-     
-
-  
+       
     loiTruck.receiveMsg = false;
   }
 
@@ -533,34 +542,37 @@ void loop() {
     loiTruck.timeout = false;
   }
 
-if (loiTruck.timestamp){
-  int8_t fake_length = sizeof(fake);
-  
-  loiTruck.fake_heart_beat = true;
   /* ---------------------- Send Fake Heart Beat message ---------------------- */
-  for (int i = 0; i < sizeof(fake); i++){        
-    
-    if (my_can_write(&loiTruck.my_can, fake[i],sizeof(fake[i]),&loiTruck)){
-       
-    } else {
-        Error_Handler();
-    } 
-       
-        
-  }
-  loiTruck.fake_heart_beat = false; 
-  loiTruck.timestamp = false;
-}
+  if (loiTruck.timestamp){
+    int8_t fake_length = sizeof(fake);
 
-  if (loiTruck.segmented){
-  }
+    loiTruck.fake_heart_beat = true;
 
-  
+    for (int i = 0; i < sizeof(fake); i++){        
+
+      if (my_can_write(&loiTruck.my_can, fake[i],sizeof(fake[i]),&loiTruck)){
+
+      } else {
+          Error_Handler();
+      } 
+
+    }
+    loiTruck.fake_heart_beat = false; 
+    loiTruck.timestamp = false;
+  }
+  /* -------------------------------------------------------------------------- */
+  /* ---------------------------------- xxxx ---------------------------------- */
+  /* -------------------------------------------------------------------------- */
+ 
+  /* -------------------------------------------------------------------------- */
+  /* ----------------------------- Print out Alarm ---------------------------- */
+  /* -------------------------------------------------------------------------- */
+
   if (loiTruck.alarm){
     Serial.println("----------------ALARM--------------------");
     loiTruck.alarm = false;
   } 
-
+  /* -------------------------------------------------------------------------- */
   /*
   if (timer6){
     Serial.println("Timer");
@@ -570,8 +582,13 @@ if (loiTruck.timestamp){
   }
   */
 
+  /* -------------------------------------------------------------------------- */
+  /* ---------------------------------- xxxx ---------------------------------- */
+  /* -------------------------------------------------------------------------- */
 
-  /* -------------------------- Check next Scenario ------------------------- */
+  /* -------------------------------------------------------------------------- */
+  /* --------------------------- Check next Scenario -------------------------- */
+  /* -------------------------------------------------------------------------- */
   if (loiTruck.finish_Scenario){
     
     loiTruck.finish_Scenario = false;
@@ -582,5 +599,67 @@ if (loiTruck.timestamp){
       RTC_AlarmConfig(&loiTruck);
     }
   }
+
+  /* -------------------------------------------------------------------------- */
+  /* ---------------------------------- xxxx ---------------------------------- */
+  /* -------------------------------------------------------------------------- */
+#endif
+
+
+#ifdef CORE_CM4
+  if (loiTruck.triggered){
+    /* ------------- classify action base on OUTPUT_TYPE of Scenario ------------ */
+    if (loiTruck.current_Scenario->_output_type == OUT_TIME_STAMP){
+      /* ---------------------------------- delay --------------------------------- */
+      loiTruck.delay = loiTruck.current_Scenario->_output_timestamp;
+    } else if (loiTruck.current_Scenario->_output_type == OUT_CAN_MESSAGE){
+      /* ---------------------------- send CAN Message ---------------------------- */
+      loiTruck.send_predefined_CAN = true;
+    } else if (loiTruck.current_Scenario->_output_type == OUT_FUNCTION){
+      /* --------------------------- manipulate variable -------------------------- */
+      loiTruck.manipulate_var = true;
+    } else if (loiTruck.current_Scenario->_output_type == OUT_NONE){
+      loiTruck.ignore = true;
+    }
+  } else {
+    /* ----------------------------- reset flag var ----------------------------- */
+    loiTruck.delay = 0;
+    loiTruck.send_predefined_CAN = false;
+    loiTruck.manipulate_var = false;
+    loiTruck.ignore = false;
+  }
+
+  if (loiTruck.manipulate_var){
+    
+    /* ------------------------ check if function != NULL ----------------------- */
+    if (loiTruck.current_Scenario->_output_function != NULL){
+      
+      /* ------------- time pass = current_time - Scenario_time_start ------------- */      
+      if (HAL_RTC_GetTime(&loiTruck.hrtc, &loiTruck.RTC_TimeRead, RTC_FORMAT_BIN) == HAL_OK){
+        uint32_t to_save = 0;
+        /* ------------------ only seconds now, maybe minute later ------------------ */
+        uint16_t sec_pass = loiTruck.RTC_TimeRead.Seconds - loiTruck.current_Scenario->_input_timestamp;
+
+        /* --------------------- var = a(t)³ + b(t)² + c(t) + d --------------------- */
+        to_save = loiTruck.current_Scenario->_output_function->_a * (sec_pass) * (sec_pass) * (sec_pass) + \
+                  loiTruck.current_Scenario->_output_function->_b * (sec_pass) * (sec_pass) + \  
+                  loiTruck.current_Scenario->_output_function->_c * (sec_pass) + \
+                  loiTruck.current_Scenario->_output_function->_d;
+
+        /* ------------------------------ save to SRAM ------------------------------ */
+        struct SDO* found = find_value(&loiTruck->my_SDO_List, loiTruck.current_Scenario->_output_function->_SDO_value);
+
+        if (found != NULL){
+          *(__IO uint32_t *)(found->address) = to_save;
+        }
+
+      }
+      
+      
+    }
+  }
+
+#endif
+
   
 }

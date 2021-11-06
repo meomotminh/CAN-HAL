@@ -80,13 +80,15 @@ public:
     double _b;
     double _c;
     double _d;
+    uint32_t _SDO_value;
 
     // constructor
-    My_Function(double a, double b, double c, double d){
+    My_Function(double a, double b, double c, double d, uint32_t value){
       _a = a;
       _b = b;
       _c = c;
       _d = d;
+      _SDO_value = value;
     }
 
     My_Function(){}
@@ -130,7 +132,7 @@ public:
 };
 
 
-static My_Function function_linear(0.0,0.0,1.0,1.0); 
+static My_Function function_linear(0.0, 0.0, 1.0, 1.0, 0x240207);  // SDO_value_240207 = 0.0(t)³ + 0.0(t)² + 1.0(t) + 1.0 
 
 /* ---------------------------- DEFINE SCRENARIO ---------------------------- */
 static Scenario Scenario_2(IN_TIME_STAMP, OUT_NONE, NULL, 10, NULL, 0, &function_linear, 10, NULL);

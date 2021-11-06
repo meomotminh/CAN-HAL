@@ -288,8 +288,12 @@ public:
     Scenario* current_Scenario = NULL;
     bool triggered = false;
     bool finish_Scenario = false;
+    bool ignore = false;
+    uint32_t delay = 0;
+    bool send_predefined_CAN = false;
+    bool manipulate_var = false;
 
-    /* ------------------------------- CONSTRUCTOR ------------------------------ */
+/* ------------------------------- CONSTRUCTOR ------------------------------ */
     LOITRUCK();
 };
 
