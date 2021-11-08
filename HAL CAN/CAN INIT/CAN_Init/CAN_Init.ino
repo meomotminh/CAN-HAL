@@ -1,14 +1,7 @@
 #include "mbed.h"
 #include <ThreadDebug.h>
-#include "src/loiTruck/loiTruck.h""
-#include "src/FDCAN/FDCAN.h"
-#include "src/RTC/RTC.h"
-#include "src/SRAM/SRAM.h"
-#include "src/TIMER/TIMER.h"
-#include "src/UTILITY/UTILITY.h"
-#include "Scenario.h"
-
-
+#include "src/loiTruck/loiTruck.h"
+#include "RPC_internal.h"  // for RPC call
 
 // For TRACE32 Debug
 //USBSerial SerialUSB1(false, "DebugPort");
@@ -19,15 +12,85 @@ using namespace mbed;
 
 
 
+
+
+
+
+
+
+/* -------------------------------------------------------------------------- */
+/*                                 CODE FOR M7                                */
+/* -------------------------------------------------------------------------- */
+
+
+
+
+#ifdef CORE_CM7
+
+
+#include "src/FDCAN/FDCAN.h"
+
+#include "src/SRAM/SRAM.h"
+#include "src/TIMER/TIMER.h"
+#include "src/UTILITY/UTILITY.h"
+
+
+
+
+// For TRACE32 Debug
+//USBSerial SerialUSB1(false, "DebugPort");
+//UsbDebugCommInterface debugComm(&SerialUSB1);
+//ThreadDebug           threadDebug(&debugComm, DEBUG_BREAK_IN_SETUP);
+
+
 LOITRUCK loiTruck = LOITRUCK();
 
+/* ------------------------------ RPC PROCEDURE ----------------------------- */
+// M4 will monitor Scenario and trigger function to update loiTruck run on M7
+int updateData(int code_id){
+  delay(500);
+  switch (code_id)
+  {
+  case 1:
+    /* ---------------------------------- delay --------------------------------- */
+    loiTruck.delay = loiTruck.current_Scenario->_output_timestamp;
+    return 1;
+    break;
+  case 2:
+    /* ------------------------------- predefined ------------------------------- */
+    loiTruck.send_predefined_CAN = true;
+    return 1;
+    break;
+  case 3:
+    /* ----------------------------- manipulate var ----------------------------- */
+    loiTruck.manipulate_var = true;
+    return 2;
+    break;
+  case 4:
+    /* --------------------------------- ignore --------------------------------- */
+    loiTruck.ignore = true;
+    return 1;
+    break;
+  case 5:
+    /* ------------------------------ end Scenario ------------------------------ */
+    loiTruck.delay = 0;
+    loiTruck.send_predefined_CAN = false;
+    loiTruck.manipulate_var = false;
+    loiTruck.ignore = false;
+    return 1;
+    break;
 
+  
+  default:
+    return 0;
+    break;
+  }
+
+}
 
 
 
 /* --------------------------- FDCAN CALLBACK --------------------------- */
-
-
 /* ------------------ from can_filter of mbed OS Target STM ----------------- */
  
 int my_can_filter(can_t *obj, uint32_t id, uint32_t mask, CANFormat format, int32_t handle, LOITRUCK* loiTruck){
@@ -86,7 +149,7 @@ int my_can_filter(can_t *obj, uint32_t id, uint32_t mask, CANFormat format, int3
   if (HAL_FDCAN_Start(&obj->CanHandle) != HAL_OK){
     Serial.println("HAL_FDCAN_Start error\n");
   } else {
-    Serial.println("Start success!");
+    Serial.println("HAL_FDCAN_Start success!");
   }
   
   /* -------------------------- FDCAN1 interrupt Init ------------------------- */
@@ -166,77 +229,7 @@ void HAL_FDCAN_TimestampWraparoundCallback(FDCAN_HandleTypeDef *hfdcan){
 
 
 
-/* ------------------------------ RTC CALLBACK ------------------------------ */
 
-void HAL_RTC_AlarmAEventCallback(RTC_HandleTypeDef *hrtc){
-  /* ----- when alarm ring, enable timer interrupt and set alarm 5s later ----- */
-  loiTruck.alarm = true;
-  
-  
-  if (!loiTruck.triggered){
-    /* --------------------------- 1st time triggered --------------------------- */
-    
-    TIMER6_Init(&loiTruck);
-    loiTruck.triggered = true;  // for logic in RTC_AlarmConfig function
-    RTC_AlarmConfig(&loiTruck);    
-        
-  } else {
-    /* ----------------------------- Deactive Alarm ----------------------------- */
-    loiTruck.triggered = false; 
-    HAL_RTC_DeactivateAlarm(&loiTruck.hrtc, RTC_ALARM_A);
-    loiTruck.finish_Scenario = true;
-  }  
-}
-
-void HAL_RTC_MspInit(void){
-    RCC_OscInitTypeDef  RCC_OscInitStruct;
-    RCC_PeriphCLKInitTypeDef RCC_RTCPeriClkInit;
-    
-    
-    /* ------------------------------- turn on LSE ------------------------------ */
-    RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_LSE;
-    RCC_OscInitStruct.LSEState = RCC_LSE_ON;
-    RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
-
-    if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK){
-
-    }
-
-    /* -------------------------- select LSE as RTCCLK -------------------------- */
-    RCC_RTCPeriClkInit.PeriphClockSelection = RCC_PERIPHCLK_RTC;
-    RCC_RTCPeriClkInit.RTCClockSelection = RCC_RTCCLKSOURCE_LSE;
-
-    if (HAL_RCCEx_PeriphCLKConfig(&RCC_RTCPeriClkInit) != HAL_OK){
-
-    }
-
-    /* ---------------------------- Enable RTC Clock ---------------------------- */
-    __HAL_RCC_RTC_ENABLE();
-    
-    
-    // enable EXTI Line 17 for RTC alarm
-    loiTruck.hexti.Line = EXTI_LINE_17;
-    loiTruck.ExtiConfig.Line = EXTI_LINE_17;
-    loiTruck.ExtiConfig.Mode = EXTI_MODE_INTERRUPT;
-    loiTruck.ExtiConfig.Trigger = EXTI_TRIGGER_RISING;
-    
-    if (HAL_EXTI_SetConfigLine(&loiTruck.hexti, &loiTruck.ExtiConfig) != HAL_OK){
-      Serial.println("HAL_EXTI_SetConfigLine error!");
-    } else {
-      Serial.println("HAL_EXTI_SetConfigLine OK!");
-    }
-
-
-    /* -------------------- enable RTC ALarm IRQ in the NVIC -------------------- */
-    NVIC_SetVector(RTC_Alarm_IRQn, (uint32_t)&RTC_Alarm_IRQHandler);
-    //NVIC_SetPriority(RTC_Alarm_IRQn,1,0);
-    NVIC_EnableIRQ(RTC_Alarm_IRQn);   
-}
-
-void RTC_Alarm_IRQHandler(void){
-  //Serial.println("error");  
-    HAL_RTC_AlarmIRQHandler(&loiTruck.hrtc);
-}
 
 
 /* ----------------------------- TIMER CALLBACK ----------------------------- */
@@ -379,11 +372,13 @@ void Error_Handler(void){
 
 void setup() {
   
-  #ifdef CORE_CM7
-    bootM4();
+    // Initialize RPC lib, also boot M4 core
+    RPC1.begin();
 
     Serial.begin(115200);
-    while (!Serial);
+    while (!Serial){};
+
+    randomSeed(analogRead(A0)); // Initializes the pseudo-random number generator
 
     /* ------------------------ Low level initialization ------------------------ */
     HAL_Init();
@@ -412,18 +407,13 @@ void setup() {
     //int my_can_filter(can_t *obj, uint32_t id, uint32_t mask, CANFormat format, int32_t handle)
     my_can_filter(&loiTruck.my_can, 0x641, 0x7FF, CANStandard, 0, &loiTruck);
 
-        HAL_RTC_MspInit();
-    RTC_Init(&loiTruck);
     
-    RTC_CalendarConfig(&loiTruck);
-    //Serial.println("1");
     
 
-    /* -------------------------------- Scenario -------------------------------- */
-    if (find_Scenario(&loiTruck)){
-      Serial.println("Found First Scenario");
-      RTC_AlarmConfig(&loiTruck);
-    }
+    
+
+    /* -------------------------------- setup RPC ------------------------------- */
+    RPC1.bind("updateData",updateData);
 
     /* ----------------------- Check Address of FDCAN RAM ----------------------- */
     Serial.println("-------------------------------------");
@@ -440,52 +430,30 @@ void setup() {
     Serial.println("|           Start loop              |");
     Serial.println("-------------------------------------");
 
-  #endif
-
-  
-
-
-  #ifdef CORE_CM4
-    Serial.begin(115200);
-    while (!Serial);
-  #endif
-  
-
-
-  
-
-  
-
-
-
-
-      
-    
-
 }
 
 
 void loop() {
   /* --------------- put your main code here, to run repeatedly: -------------- */
 
-#ifdef CORE_CM7
   /* -------------------------------------------------------------------------- */
   /* ----------------------------- Read and Reply ----------------------------- */
   /* -------------------------------------------------------------------------- */
+  
   if (loiTruck.receiveMsg){
 
      Serial.println("Receive mess");
     
     
-    /* -------------------- Retrieve Rx message from Rx FIFO0 ------------------- */
+    
     if (HAL_FDCAN_GetRxMessage(&loiTruck.my_can.CanHandle, FDCAN_RX_FIFO0, &loiTruck.RxHeader, loiTruck.RxData) != HAL_OK){
         Serial.println("Error Handler");
         Error_Handler();
       
     } else {      
-    /* ------------------------------ check action ------------------------------ */
+    
 
-    /* -------------------------------- print out ------------------------------- */
+    
     Serial.println("*****************************");
     Serial.print("R :\t"); Serial.print(loiTruck.RxHeader.Identifier,HEX); Serial.print(" ");
 
@@ -498,7 +466,7 @@ void loop() {
 
     Serial.println();  
         
-      /* ------------------------------ READ COMMAND ------------------------------ */
+      
       if ((((loiTruck.RxData[0] & 0xF0) == 0x40) | ((loiTruck.RxData[0] & 0xF0) == 0x60) | loiTruck.segmented)){        
           
           if (read_parameter(&loiTruck)){
@@ -511,7 +479,7 @@ void loop() {
           }
                                                                   
       } else if ((loiTruck.RxData[0] & 0xF0) == 0x20) {
-        /* ------------------------------ WRITE COMMAND ----------------------------- */
+        
         
         write_parameter(&loiTruck);  
 
@@ -543,23 +511,25 @@ void loop() {
   }
 
   /* ---------------------- Send Fake Heart Beat message ---------------------- */
+  
   if (loiTruck.timestamp){
-    int8_t fake_length = sizeof(fake);
-
+    //Serial.println("TimeStamp trigger!");
     loiTruck.fake_heart_beat = true;
-
-    for (int i = 0; i < sizeof(fake); i++){        
-
-      if (my_can_write(&loiTruck.my_can, fake[i],sizeof(fake[i]),&loiTruck)){
+    //Serial.print("Size of fake: "); Serial.println(sizeof(fake));
+    for (int i = 0; i < 24; i++){        
+      
+      if (my_can_write(&loiTruck.my_can, fake[i],0,&loiTruck)){
 
       } else {
-          Error_Handler();
+          //Error_Handler();
+          Serial.println("Error");
       } 
 
     }
     loiTruck.fake_heart_beat = false; 
     loiTruck.timestamp = false;
   }
+  
   /* -------------------------------------------------------------------------- */
   /* ---------------------------------- xxxx ---------------------------------- */
   /* -------------------------------------------------------------------------- */
@@ -567,99 +537,183 @@ void loop() {
   /* -------------------------------------------------------------------------- */
   /* ----------------------------- Print out Alarm ---------------------------- */
   /* -------------------------------------------------------------------------- */
-
+  
   if (loiTruck.alarm){
     Serial.println("----------------ALARM--------------------");
     loiTruck.alarm = false;
   } 
   /* -------------------------------------------------------------------------- */
   /*
-  if (timer6){
+  if (loiTruck.timer6){
     Serial.println("Timer");
-    timer6 = false;
+    loiTruck.timer6 = false;
   } else {
     
   }
   */
+  
 
   /* -------------------------------------------------------------------------- */
   /* ---------------------------------- xxxx ---------------------------------- */
   /* -------------------------------------------------------------------------- */
+
+  String buffer = "";
+  while (RPC1.available()){
+    buffer += (char)RPC1.read();
+  }
+
+  if (buffer.length() > 0){
+    Serial.println(buffer);
+  }
+
+  
+
+}
+
+#endif
+
+
+/* -------------------------------------------------------------------------- */
+/*                                 CODE FOR M4                                */
+/* -------------------------------------------------------------------------- */
+
+#ifdef CORE_CM4
+
+#include "RPC_internal.h"  // for RPC call
+#include "src/RTC/RTC.h"
+#include "Scenario.h"
+#include "src/UTILITY/UTILITY.h"
+
+// another loiTruck object for core M4
+LOITRUCK loiTruck_M4 = LOITRUCK();
+
+/* ------------------------------ RTC CALLBACK ------------------------------ */
+
+void HAL_RTC_AlarmAEventCallback(RTC_HandleTypeDef *hrtc){
+  /* ----- when alarm ring, enable timer interrupt and set alarm 5s later ----- */
+  loiTruck_M4.alarm = true;
+  
+  
+  if (!loiTruck_M4.triggered){
+    /* --------------------------- 1st time triggered --------------------------- */
+    
+    //TIMER6_Init(&loiTruck_M4);
+    loiTruck_M4.triggered = true;  // for logic in RTC_AlarmConfig function
+    RTC_AlarmConfig(&loiTruck_M4);    
+        
+  } else {
+    /* ----------------------------- Deactive Alarm ----------------------------- */
+    loiTruck_M4.triggered = false; 
+    HAL_RTC_DeactivateAlarm(&loiTruck_M4.hrtc, RTC_ALARM_A);
+    loiTruck_M4.finish_Scenario = true;
+  }  
+}
+
+void HAL_RTC_MspInit(void){
+    RCC_OscInitTypeDef  RCC_OscInitStruct;
+    RCC_PeriphCLKInitTypeDef RCC_RTCPeriClkInit;
+    
+    
+    /* ------------------------------- turn on LSE ------------------------------ */
+    RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_LSE;
+    RCC_OscInitStruct.LSEState = RCC_LSE_ON;
+    RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
+
+    if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK){
+
+    }
+
+    /* -------------------------- select LSE as RTCCLK -------------------------- */
+    RCC_RTCPeriClkInit.PeriphClockSelection = RCC_PERIPHCLK_RTC;
+    RCC_RTCPeriClkInit.RTCClockSelection = RCC_RTCCLKSOURCE_LSE;
+
+    if (HAL_RCCEx_PeriphCLKConfig(&RCC_RTCPeriClkInit) != HAL_OK){
+
+    }
+
+    /* ---------------------------- Enable RTC Clock ---------------------------- */
+    __HAL_RCC_RTC_ENABLE();
+    
+    
+    // enable EXTI Line 17 for RTC alarm
+    loiTruck_M4.hexti.Line = EXTI_LINE_17;
+    loiTruck_M4.ExtiConfig.Line = EXTI_LINE_17;
+    loiTruck_M4.ExtiConfig.Mode = EXTI_MODE_INTERRUPT;
+    loiTruck_M4.ExtiConfig.Trigger = EXTI_TRIGGER_RISING;
+    
+    if (HAL_EXTI_SetConfigLine(&loiTruck_M4.hexti, &loiTruck_M4.ExtiConfig) != HAL_OK){
+      //Serial.println("HAL_EXTI_SetConfigLine error!");
+    } else {
+      //Serial.println("HAL_EXTI_SetConfigLine OK!");
+    }
+
+
+    /* -------------------- enable RTC ALarm IRQ in the NVIC -------------------- */
+    NVIC_SetVector(RTC_Alarm_IRQn, (uint32_t)&RTC_Alarm_IRQHandler);
+    //NVIC_SetPriority(RTC_Alarm_IRQn,1,0);
+    NVIC_EnableIRQ(RTC_Alarm_IRQn);   
+}
+
+void RTC_Alarm_IRQHandler(void){
+  //Serial.println("error");  
+    HAL_RTC_AlarmIRQHandler(&loiTruck_M4.hrtc);
+}
+
+void setup(){
+    // initialize RPC lib
+    RPC1.begin();
+    Serial.begin(115200);
+    //while(!Serial){};
+    
+    randomSeed(analogRead(A0)); // Initializes the pseudo-random number generator
+    
+    //HAL_Init();
+    HAL_RTC_MspInit();
+    RTC_Init(&loiTruck_M4);
+    
+    RTC_CalendarConfig(&loiTruck_M4);
+    //Serial.println("1");
+
+    /* -------------------------------- Scenario -------------------------------- */
+    if (find_Scenario(&loiTruck_M4)){
+      RPC1.println("Found First Scenario");
+      RTC_AlarmConfig(&loiTruck_M4);
+      // call RPC procedure on M7
+      RPC1.println("Call from M4 through RPC procedure");
+
+      RPC1.println("Hier:" + String(convert_Scenario_To_Code(loiTruck_M4.current_Scenario)));
+      
+
+      /*
+      auto result = RPC1.call("updateData",4).as<int>();
+
+      if (result == 1){
+        loiTruck_M4.finish_Scenario = true;
+      }*/
+      
+    }
+}
+
+void loop(){
 
   /* -------------------------------------------------------------------------- */
   /* --------------------------- Check next Scenario -------------------------- */
   /* -------------------------------------------------------------------------- */
-  if (loiTruck.finish_Scenario){
-    
-    loiTruck.finish_Scenario = false;
-
-    if (find_Scenario(&loiTruck)){
-      Serial.println("Found Next Scenario");
-      RTC_CalendarConfig(&loiTruck);
-      RTC_AlarmConfig(&loiTruck);
-    }
-  }
-
-  /* -------------------------------------------------------------------------- */
-  /* ---------------------------------- xxxx ---------------------------------- */
-  /* -------------------------------------------------------------------------- */
-#endif
-
-
-#ifdef CORE_CM4
-  if (loiTruck.triggered){
-    /* ------------- classify action base on OUTPUT_TYPE of Scenario ------------ */
-    if (loiTruck.current_Scenario->_output_type == OUT_TIME_STAMP){
-      /* ---------------------------------- delay --------------------------------- */
-      loiTruck.delay = loiTruck.current_Scenario->_output_timestamp;
-    } else if (loiTruck.current_Scenario->_output_type == OUT_CAN_MESSAGE){
-      /* ---------------------------- send CAN Message ---------------------------- */
-      loiTruck.send_predefined_CAN = true;
-    } else if (loiTruck.current_Scenario->_output_type == OUT_FUNCTION){
-      /* --------------------------- manipulate variable -------------------------- */
-      loiTruck.manipulate_var = true;
-    } else if (loiTruck.current_Scenario->_output_type == OUT_NONE){
-      loiTruck.ignore = true;
-    }
-  } else {
-    /* ----------------------------- reset flag var ----------------------------- */
-    loiTruck.delay = 0;
-    loiTruck.send_predefined_CAN = false;
-    loiTruck.manipulate_var = false;
-    loiTruck.ignore = false;
-  }
-
-  if (loiTruck.manipulate_var){
-    
-    /* ------------------------ check if function != NULL ----------------------- */
-    if (loiTruck.current_Scenario->_output_function != NULL){
-      
-      /* ------------- time pass = current_time - Scenario_time_start ------------- */      
-      if (HAL_RTC_GetTime(&loiTruck.hrtc, &loiTruck.RTC_TimeRead, RTC_FORMAT_BIN) == HAL_OK){
-        uint32_t to_save = 0;
-        /* ------------------ only seconds now, maybe minute later ------------------ */
-        uint16_t sec_pass = loiTruck.RTC_TimeRead.Seconds - loiTruck.current_Scenario->_input_timestamp;
-
-        /* --------------------- var = a(t)³ + b(t)² + c(t) + d --------------------- */
-        to_save = loiTruck.current_Scenario->_output_function->_a * (sec_pass) * (sec_pass) * (sec_pass) + \
-                  loiTruck.current_Scenario->_output_function->_b * (sec_pass) * (sec_pass) + \  
-                  loiTruck.current_Scenario->_output_function->_c * (sec_pass) + \
-                  loiTruck.current_Scenario->_output_function->_d;
-
-        /* ------------------------------ save to SRAM ------------------------------ */
-        struct SDO* found = find_value(&loiTruck->my_SDO_List, loiTruck.current_Scenario->_output_function->_SDO_value);
-
-        if (found != NULL){
-          *(__IO uint32_t *)(found->address) = to_save;
-        }
-
-      }
-      
-      
-    }
-  }
-
-#endif
 
   
+  
+  if (loiTruck_M4.finish_Scenario){
+      
+    loiTruck_M4.finish_Scenario = false;
+
+    if (find_Scenario(&loiTruck_M4)){
+      RPC1.println("Found Next Scenario");
+      RTC_CalendarConfig(&loiTruck_M4);
+      RTC_AlarmConfig(&loiTruck_M4);
+    }
+  }  
+
 }
+
+
+#endif

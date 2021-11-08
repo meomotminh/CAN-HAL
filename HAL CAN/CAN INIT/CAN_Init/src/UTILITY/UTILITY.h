@@ -32,4 +32,12 @@ bool find_Scenario(LOITRUCK* loiTruck);
 
 bool setup_Scenario(LOITRUCK* loiTruck);
 
+void print_CANMessage(CANMessage msg);
+
+String currentCPU(void);
+
+uint8_t convert_Scenario_To_Code(Scenario*);
+
+
+
 #endif

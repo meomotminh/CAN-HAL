@@ -33,9 +33,9 @@ void RTC_CalendarConfig(LOITRUCK* loiTruck){
     RTC_TimeInit.TimeFormat = RTC_HOURFORMAT12_PM;
 
     if (HAL_RTC_SetTime(&loiTruck->hrtc, &RTC_TimeInit, RTC_FORMAT_BIN) != HAL_OK){
-       Serial.println("HAL_RTC_SetTime error!"); 
+       //Serial.println("HAL_RTC_SetTime error!"); 
     } else  {
-      Serial.println("HAL_RTC_SetTime OK!");
+       //Serial.println("HAL_RTC_SetTime OK!");
     }
 
     RTC_DateInit.Date = 12;
@@ -44,9 +44,9 @@ void RTC_CalendarConfig(LOITRUCK* loiTruck){
     RTC_DateInit.WeekDay = RTC_WEEKDAY_TUESDAY;
 
     if (HAL_RTC_SetDate(&loiTruck->hrtc, &RTC_DateInit, RTC_FORMAT_BIN)!= HAL_OK){
-      Serial.println("HAL_RTC_SetDate error!");
+       //Serial.println("HAL_RTC_SetDate error!");
     } else  {
-      Serial.println("HAL_RTC_SetDate OK!");
+       //Serial.println("HAL_RTC_SetDate OK!");
     }
 }
 

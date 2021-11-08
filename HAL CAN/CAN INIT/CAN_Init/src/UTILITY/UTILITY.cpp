@@ -375,7 +375,7 @@ bool find_Scenario(LOITRUCK* loiTruck){
     if (&Scenario_1 != NULL)
       loiTruck->current_Scenario = &Scenario_1;
     else {
-      Serial.println("Cannot find Scenario_1 object!");
+      //Serial.println("Cannot find Scenario_1 object!");
       result = false;
     }
       
@@ -405,5 +405,35 @@ bool setup_Scenario(LOITRUCK* loiTruck){
 
 
 }
+
+
+void print_CANMessage(CANMessage msg){
+  Serial.print(msg.id, HEX);
+  Serial.print("\t");
+  
+  for (uint8_t i = 0; i<msg.len; i++){    
+    Serial.print(msg.data[i], HEX);
+    Serial.print("\t");
+  }
+
+  Serial.println();
+  
+}
+
+// from RPC_m4 example
+String currentCPU(void){
+  if (HAL_GetCurrentCPUID() == CM7_CPUID){
+    return "M7";
+  } else {
+    return "M4";
+  };
+}
+
+uint8_t convert_Scenario_To_Code(Scenario* sce){
+  Serial.print("Convert:"); Serial.println(sce->_output_type);
+  return sce->_output_type + 1;    // index start at 0
+}
+
+
 
 /* -------------------------------------------------------------------------- */
