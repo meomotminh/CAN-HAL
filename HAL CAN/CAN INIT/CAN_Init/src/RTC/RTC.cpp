@@ -15,9 +15,9 @@ void RTC_Init(LOITRUCK* loiTruck){
     loiTruck->hrtc.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
 
     if (HAL_RTC_Init(&loiTruck->hrtc) != HAL_OK){
-      Serial.println("HAL_RTC_Init error!");
+      //Serial.println("HAL_RTC_Init error!");
     } else {
-      Serial.println("HAL_RTC_Init OK!");
+      //Serial.println("HAL_RTC_Init OK!");
     }
 }
 
@@ -55,7 +55,7 @@ void RTC_CalendarConfig(LOITRUCK* loiTruck){
 
 
 
-void RTC_AlarmConfig(LOITRUCK* loiTruck){
+bool RTC_AlarmConfig(LOITRUCK* loiTruck){
    //Serial.println("Come Here!");
    RTC_AlarmTypeDef AlarmA_Set;
 
@@ -78,9 +78,9 @@ void RTC_AlarmConfig(LOITRUCK* loiTruck){
    AlarmA_Set.AlarmSubSecondMask = RTC_ALARMSUBSECONDMASK_NONE;
    if ( HAL_RTC_SetAlarm_IT(&loiTruck->hrtc, &AlarmA_Set, RTC_FORMAT_BIN) != HAL_OK)
    {
-     
+     return false;
    } else {
-     
+     return true;
    }
   
 }

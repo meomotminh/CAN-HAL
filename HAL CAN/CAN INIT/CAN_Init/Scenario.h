@@ -68,10 +68,10 @@ enum INPUT_TYPE {
 }; 
 
 enum OUTPUT_TYPE {
-    OUT_TIME_STAMP,
-    OUT_CAN_MESSAGE,
-    OUT_FUNCTION,
-    OUT_NONE
+    OUT_TIME_STAMP,  // delay: 0
+    OUT_CAN_MESSAGE, // predefinded: 1
+    OUT_FUNCTION,    // function: 2
+    OUT_NONE         // ignore: 3
 };
 
 typedef class My_Function {
