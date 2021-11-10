@@ -23,7 +23,7 @@ const  uint8_t temp6[] = {0x49,0x01,0x2E,0x74,0x0,0x00,0x0,0x0};
 const  uint8_t temp7[] = {0x23,0x40,0x53,0x01,0x7C,0x00,0x00,0x10};
 const  uint8_t temp8[] = {0x23,0x40,0x53,0x01,0x00,0x00,0x00,0x00};
 
-static CAN_Message fake[24] = {
+static CANMessage fake[24] = {
                     CANMessage(0x80,temp0,0),
                     CANMessage(0x20e,temp1,8),
                     CANMessage(0x30E,temp2,8),
@@ -235,7 +235,7 @@ public:
 /* ------------------------------- GLOBAL VAR ------------------------------- */
     can_t my_can; // mbed CAN object
     char counter = 0; 
-    CAN_Message msg; // mbed CAN message object
+    CANMessage msg; // mbed CAN message object
     FDCAN_RxHeaderTypeDef RxHeader; // HAL RxHeader object
     FDCAN_TxHeaderTypeDef TxHeader; // HAL TxHeader object
     uint8_t RxData[8]; // Buffer to save RxData

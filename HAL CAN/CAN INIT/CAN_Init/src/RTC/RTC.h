@@ -12,6 +12,6 @@ void RTC_Init(LOITRUCK* loiTruck);
 void RTC_CalendarConfig(LOITRUCK* loiTruck);
 
 
-void RTC_AlarmConfig(LOITRUCK* loiTruck);
+bool RTC_AlarmConfig(LOITRUCK* loiTruck);
 
 #endif

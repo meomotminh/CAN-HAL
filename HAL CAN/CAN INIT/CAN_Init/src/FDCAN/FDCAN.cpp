@@ -174,7 +174,7 @@ void Trd_internal_init(can_t *obj){
   if (HAL_FDCAN_Init(&obj->CanHandle) != HAL_OK){
     Serial.println("HAL_FDCAN_Init error\n");
   } else {
-    Serial.println("Init success!");
+    Serial.println("HAL_FDCAN_Init success!");
   }
 
 
@@ -301,60 +301,22 @@ void Trd_internal_init(can_t *obj){
  * and SimpleCAN github
  * 
  * **/
-int my_can_write(can_t *obj, CAN_Message msg, int cc, LOITRUCK* loiTruck){
-/**
-  typedef struct
-  {
-  uint32_t Identifier;          !< Specifies the identifier.
-                                     This parameter must be a number between:
-                                      - 0 and 0x7FF, if IdType is FDCAN_STANDARD_ID
-                                      - 0 and 0x1FFFFFFF, if IdType is FDCAN_EXTENDED_ID               
+int my_can_write(can_t *obj, CANMessage msg, int cc, LOITRUCK* loiTruck){
 
-  uint32_t IdType;              !< Specifies the identifier type for the message that will be
-                                     transmitted.
-                                     This parameter can be a value of @ref FDCAN_id_type               
-
-  uint32_t TxFrameType;         !< Specifies the frame type of the message that will be transmitted.
-                                     This parameter can be a value of @ref FDCAN_frame_type            
-
-  uint32_t DataLength;          !< Specifies the length of the frame that will be transmitted.
-                                      This parameter can be a value of @ref FDCAN_data_length_code    
-
-  uint32_t ErrorStateIndicator; !< Specifies the error state indicator.
-                                     This parameter can be a value of @ref FDCAN_error_state_indicator 
-
-  uint32_t BitRateSwitch;       !< Specifies whether the Tx frame will be transmitted with or without
-                                     bit rate switching.
-                                     This parameter can be a value of @ref FDCAN_bit_rate_switching    
-
-  uint32_t FDFormat;            !< Specifies whether the Tx frame will be transmitted in classic or
-                                     FD format.
-                                     This parameter can be a value of @ref FDCAN_format                
-
-  uint32_t TxEventFifoControl;  !< Specifies the event FIFO control.
-                                     This parameter can be a value of @ref FDCAN_EFC                   
-
-  uint32_t MessageMarker;       !< Specifies the message marker to be copied into Tx Event FIFO
-                                     element for identification of Tx message status.
-                                     This parameter must be a number between 0 and 0xFF                
-
-} FDCAN_TxHeaderTypeDef;    
-  */
-  FDCAN_TxHeaderTypeDef TxHeader = {0};
 
   UNUSED(cc);
 
   // Configure Tx buffer message
+  
   loiTruck->TxHeader.Identifier = msg.id;
-  if (msg.format == CANStandard){
-    //Serial.println("Standard");
-    loiTruck->TxHeader.IdType = FDCAN_STANDARD_ID;
-  } else {
-    loiTruck->TxHeader.IdType = FDCAN_EXTENDED_ID;
-  }
-
+  //Serial.print("Message ID:"); Serial.println(loiTruck->TxHeader.Identifier, HEX);
+  
+  loiTruck->TxHeader.IdType = FDCAN_STANDARD_ID;
   loiTruck->TxHeader.TxFrameType = FDCAN_DATA_FRAME;
   loiTruck->TxHeader.DataLength = msg.len << 16;
+
+  //Serial.print("Data length:"); Serial.println(loiTruck->TxHeader.DataLength, HEX);
+  
   
   loiTruck->TxHeader.ErrorStateIndicator = FDCAN_ESI_ACTIVE;
   loiTruck->TxHeader.BitRateSwitch = FDCAN_BRS_OFF;
@@ -362,24 +324,29 @@ int my_can_write(can_t *obj, CAN_Message msg, int cc, LOITRUCK* loiTruck){
   loiTruck->TxHeader.TxEventFifoControl = FDCAN_STORE_TX_EVENTS;
   loiTruck->TxHeader.MessageMarker = 0;
 
-  for (int i = 0; i < 8; i++) loiTruck->TxData[i] = loiTruck->msg.data[i];    // For print out later
-  
+  for (int i = 0; i<msg.len; i++){
+    loiTruck->msg.data[i] = msg.data[i];    // For print out later
+    loiTruck->TxData[i] = msg.data[i];
+    //Serial.println(loiTruck->TxData[i]);
+  }
+
+
   // check if ignore or delay or send_predefined
   if (!loiTruck->ignore){
     HAL_Delay(loiTruck->delay);
     
-    if (HAL_FDCAN_AddMessageToTxFifoQ(&(obj->CanHandle), &loiTruck->TxHeader, loiTruck->msg.data) != HAL_OK){
-      // USING M4 to Serial print        
+    if (HAL_FDCAN_AddMessageToTxFifoQ(&(loiTruck->my_can.CanHandle), &loiTruck->TxHeader, msg.data) != HAL_OK){
+      Serial.println("Hier error addMessageToTx");
       return 0;
     }
 
     if (!loiTruck->fake_heart_beat){
-      Serial.print("S :\t"); Serial.print(TxHeader.Identifier,HEX); Serial.print(" ");
+      Serial.print("S :\t"); Serial.print(loiTruck->TxHeader.Identifier,HEX); Serial.print(" ");
 
         
-      for (uint8_t i = 0; i < (loiTruck->TxHeader.DataLength >> 16); i++){
+      for (uint8_t i = 0; i < (msg.len); i++){
         Serial.print(" ");
-        Serial.print(loiTruck->TxData[i], HEX); 
+        Serial.print(loiTruck->msg.data[i], HEX); 
       }
 
       Serial.println();   
@@ -463,8 +430,11 @@ unsigned char my_can_tderror(can_t *obj)
  * **/
 int my_can_mode(can_t *obj, CanMode mode)
 {
-  if (HAL_FDCAN_Stop(&obj->CanHandle) != HAL_OK){
-    //Serial.println("HAL_FDCAN_Stop error");
+  HAL_StatusTypeDef temp = HAL_FDCAN_Stop(&obj->CanHandle);
+
+  if ( temp != HAL_OK){
+    Serial.print("HAL_FDCAN_Stop:\t");
+    Serial.println(temp);
   }
 
   switch (mode){
