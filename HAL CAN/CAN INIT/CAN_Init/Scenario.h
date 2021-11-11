@@ -135,9 +135,9 @@ public:
 static My_Function function_linear(0.0, 0.0, 1.0, 1.0, 0x240207);  // SDO_value_240207 = 0.0(t)³ + 0.0(t)² + 1.0(t) + 1.0 
 
 /* ---------------------------- DEFINE SCRENARIO ---------------------------- */
-static Scenario Scenario_2(IN_TIME_STAMP, OUT_NONE, NULL, 10, NULL, 0, &function_linear, 10, NULL);
+static Scenario Scenario_2(IN_TIME_STAMP, OUT_FUNCTION, NULL, 10, NULL, 0, &function_linear, 5, NULL);
 
-static Scenario Scenario_1(IN_TIME_STAMP, OUT_NONE, NULL, 10, NULL, 0, &function_linear, 10, &Scenario_2);
+static Scenario Scenario_1(IN_TIME_STAMP, OUT_FUNCTION, NULL, 10, NULL, 0, &function_linear, 5, &Scenario_2);
 
 
 

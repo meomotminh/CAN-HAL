@@ -332,7 +332,7 @@ int my_can_write(can_t *obj, CANMessage msg, int cc, LOITRUCK* loiTruck){
 
 
   // check if ignore or delay or send_predefined
-  if (!loiTruck->ignore){
+  if ((!loiTruck->ignore) || (loiTruck->fake_heart_beat)){
     HAL_Delay(loiTruck->delay);
     
     if (HAL_FDCAN_AddMessageToTxFifoQ(&(loiTruck->my_can.CanHandle), &loiTruck->TxHeader, msg.data) != HAL_OK){

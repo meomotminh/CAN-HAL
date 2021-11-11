@@ -297,6 +297,7 @@ public:
     int last_millis = 0;
     uint8_t buffer_index = 0;
 
+
 /* ------------------------------- CONSTRUCTOR ------------------------------ */
     LOITRUCK();
 };

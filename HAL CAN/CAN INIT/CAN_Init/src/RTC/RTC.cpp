@@ -15,9 +15,9 @@ void RTC_Init(LOITRUCK* loiTruck){
     loiTruck->hrtc.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
 
     if (HAL_RTC_Init(&loiTruck->hrtc) != HAL_OK){
-      //Serial.println("HAL_RTC_Init error!");
+      Serial.println("HAL_RTC_Init error!");
     } else {
-      //Serial.println("HAL_RTC_Init OK!");
+      Serial.println("HAL_RTC_Init OK!");
     }
 }
 
@@ -68,10 +68,11 @@ bool RTC_AlarmConfig(LOITRUCK* loiTruck){
    AlarmA_Set.AlarmTime.Minutes = 45;
    
 
-   if (loiTruck->triggered == false){
+   if (!loiTruck->triggered){
      AlarmA_Set.AlarmTime.Seconds = loiTruck->current_Scenario->_input_timestamp;
    } else {
-     AlarmA_Set.AlarmTime.Seconds = loiTruck->current_Scenario->_input_timestamp + loiTruck->current_Scenario->_duration;
+     //AlarmA_Set.AlarmTime.Seconds = loiTruck->current_Scenario->_input_timestamp + loiTruck->current_Scenario->_duration;
+     AlarmA_Set.AlarmTime.Seconds = loiTruck->current_Scenario->_duration;
    }
       
    AlarmA_Set.AlarmMask = RTC_ALARMMASK_DATEWEEKDAY | RTC_ALARMMASK_HOURS | RTC_ALARMMASK_MINUTES;

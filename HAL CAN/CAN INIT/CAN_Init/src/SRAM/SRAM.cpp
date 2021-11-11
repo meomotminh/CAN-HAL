@@ -433,4 +433,8 @@ void manipulate_SDO_on_SRAM(My_Function func, int index, LOITRUCK* loiTruck){
     if (found != NULL){
       *(__IO uint32_t *)(found->address) = loiTruck->mani_buffer[index];    
     }
+
+    // read from SRAM
+    //uint32_t read_from_SRAM = *(__IO uint32_t *)(found->address);
+    //Serial.print("Read from SRAM:"); Serial.println(read_from_SRAM);
 }
