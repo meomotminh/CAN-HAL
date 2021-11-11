@@ -291,7 +291,11 @@ public:
     bool ignore = false;
     uint32_t delay = 0;
     bool send_predefined_CAN = false;
-    bool manipulate_var = false;
+    //bool manipulate_var = false;
+    uint32_t mani_buffer[256];
+    int sample_rate = 0;
+    int last_millis = 0;
+    uint8_t buffer_index = 0;
 
 /* ------------------------------- CONSTRUCTOR ------------------------------ */
     LOITRUCK();
