@@ -425,3 +425,12 @@ void init_SDO_object(LOITRUCK* loiTruck){
 
 
 }
+
+
+void manipulate_SDO_on_SRAM(My_Function func, int index, LOITRUCK* loiTruck){
+    struct SDO* found = find_value(&loiTruck->my_SDO_List, func._SDO_value);
+
+    if (found != NULL){
+      *(__IO uint32_t *)(found->address) = loiTruck->mani_buffer[index];    
+    }
+}

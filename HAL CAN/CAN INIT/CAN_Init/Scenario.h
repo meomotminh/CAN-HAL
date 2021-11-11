@@ -121,12 +121,12 @@ public:
     CAN_Message *output_CAN, uint32_t output_time, My_Function *output_func, uint32_t dur, Scenario* next){        
         _input_type = inp;
         _output_type = out;
-        _input_CAN_message = input_CAN;
-        _input_timestamp = input_time;
-        _output_CAN_message = output_CAN;
-        _output_timestamp = output_time;
-        _output_function = output_func;
-        _duration = dur;
+        _input_CAN_message = input_CAN;  // Start CAN
+        _input_timestamp = input_time;   // start time
+        _output_CAN_message = output_CAN; // predefined CAN
+        _output_timestamp = output_time; // delay time
+        _output_function = output_func;  // manipulate func
+        _duration = dur;                
         _next = next;        
     }
 };
