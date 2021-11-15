@@ -24,9 +24,9 @@ using namespace mbed;
 #ifdef CORE_CM7
 
 /* ---------------------------- For TRACE32 Debug --------------------------- */
-USBSerial SerialUSB1(false, "DebugPort");
-UsbDebugCommInterface debugComm(&SerialUSB1);
-ThreadDebug           threadDebug(&debugComm, DEBUG_BREAK_IN_SETUP);
+//USBSerial SerialUSB1(false, "DebugPort");
+//UsbDebugCommInterface debugComm(&SerialUSB1);
+//ThreadDebug           threadDebug(&debugComm, DEBUG_BREAK_IN_SETUP);
 
 
 LOITRUCK loiTruck = LOITRUCK(); // only loiTruck on M7
@@ -139,7 +139,7 @@ int my_can_filter(can_t *obj, uint32_t id, uint32_t mask, CANFormat format, int3
   
 /* ----- Configure global filter: Filter all remote frames with STD and ----- */
 /* -------- EXT ID Reject non matching frames with STD ID and EXT ID -------- */
-    
+  /*  
   if (HAL_FDCAN_ConfigGlobalFilter(&loiTruck->my_can.CanHandle, FDCAN_ACCEPT_IN_RX_FIFO0, FDCAN_ACCEPT_IN_RX_FIFO0, FDCAN_FILTER_REMOTE, FDCAN_FILTER_REMOTE) != HAL_OK){
     //Error_Handler();
     Serial.println("HAL_FDCAN_ConfigGlobalFilter error!");
@@ -153,7 +153,7 @@ int my_can_filter(can_t *obj, uint32_t id, uint32_t mask, CANFormat format, int3
   } else {
     Serial.println("HAL_FDCAN_ConfigFilter OK");
   }
-  
+  */
 
   /* ---------------------------- Enable Interrupt ---------------------------- */
    
@@ -231,12 +231,12 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 */
 
 void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs){
-  if ((RxFifo0ITs & FDCAN_IT_RX_FIFO0_NEW_MESSAGE) != RESET){
+  //if ((RxFifo0ITs & FDCAN_IT_RX_FIFO0_NEW_MESSAGE) != RESET){
 
     loiTruck.receiveMsg = true;
     
     // DO SOMETHING
-  }
+  //}
 }
 
 void HAL_FDCAN_TimeoutOccurredCallback(FDCAN_HandleTypeDef *hfdcan){
@@ -476,7 +476,7 @@ void loop() {
 
   if (loiTruck.receiveMsg){
 
-     Serial.println("Receive mess");
+     //Serial.println("Receive mess");
     
     
     
@@ -500,7 +500,7 @@ void loop() {
 
     Serial.println();  
         
-      
+      // READ COMMAND
       if ((((loiTruck.RxData[0] & 0xF0) == 0x40) | ((loiTruck.RxData[0] & 0xF0) == 0x60) | loiTruck.segmented)){        
           
           if (read_parameter(&loiTruck)){
@@ -511,10 +511,11 @@ void loop() {
                 Error_Handler();
               }            
           }
-                                                                  
+          
+      // WRITE COMMAND                                                            
       } else if ((loiTruck.RxData[0] & 0xF0) == 0x20) {
         
-        
+        Serial.println("Write Command!");
         write_parameter(&loiTruck);  
 
         loiTruck.TxHeader.Identifier = prepare_ID(loiTruck.RxHeader.Identifier);
@@ -602,7 +603,8 @@ void loop() {
       loiTruck.sample_rate = (int)((loiTruck.current_Scenario->_duration * 1000)/250); // to ensure buffer_index < 256
       
       struct SDO* found = find_value(&loiTruck.my_SDO_List, loiTruck.current_Scenario->_output_function->_SDO_value);
-      
+
+      Serial.print("Sample Rate:"); Serial.println(loiTruck.sample_rate);
       Serial.print("Manipulate Address:"); Serial.println(found->address, HEX);
       
       double temp_a = loiTruck.current_Scenario->_output_function->_a;
@@ -611,16 +613,26 @@ void loop() {
       double temp_d = loiTruck.current_Scenario->_output_function->_d;
       
       // calculate buffer
-      for (int i = 0; i < 256; i++){
+      if (!loiTruck.current_Scenario->_output_function->_sin){
+        for (int i = 0; i < 256; i++){
         loiTruck.mani_buffer[i] = (int) (temp_a * (i * loiTruck.sample_rate) * (i * loiTruck.sample_rate) * (i * loiTruck.sample_rate) + \
                                         temp_b * (i * loiTruck.sample_rate) * (i * loiTruck.sample_rate) + \          
                                         temp_c * (i * loiTruck.sample_rate) + \
                                         temp_d);
-        
+        }  
+      } else {
+        for (int i = 0; i < 256; i++){
+        loiTruck.mani_buffer[i] = (int) (temp_a * sin(i * loiTruck.sample_rate) * sin(i * loiTruck.sample_rate) * sin(i * loiTruck.sample_rate) + \
+                                        temp_b * sin(i * loiTruck.sample_rate) * sin(i * loiTruck.sample_rate) + \          
+                                        temp_c * sin(i * loiTruck.sample_rate) + \
+                                        temp_d);
+        }  
+      }
+      
        // Call M4
        //RPC1.call("updateData",5,0); // for example only
       
-      }
+      
             
         
       }

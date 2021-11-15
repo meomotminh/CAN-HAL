@@ -59,150 +59,11 @@ static CANMessage fake[24] = {
  * **/
 
 
-#define res_2000_00         0x09000000 // Subindex 0 : Number of entries 
-#define res_2000_00_indx   1
 
-#define res_2000_01         0x51854962
-#define res_2000_01_indx    2
 
-#define res_2000_03         0x51226801
-#define res_2000_03_indx    3
 
-#define res_2002_02         0x22222222
-#define res_2002_02_indx    4
 
-#define res_2020_02         0x2E740000
-#define res_2020_02_indx    5
-
-#define res_2100_02         0x64000000 // -------------------- BESCHLEUNIGUNG FAHRPROGRAM (SPEED UP 2100-------------------------
-#define res_2100_02_indx    6
-
-#define res_2102_02         0x32000000 // -------------------- BESCHLEUNIGUNG MITGÄNGER FAHRPROGRAM (SPEED UP SUBINDEX 2 2102------------------------
-#define res_2102_02_indx    7
-
-#define res_2102_06         0x32000000 // -------------------- BESCHLEUNIGUNG MITGÄNGER FAHRPROGRAM (SPEED UP SUBINDEX 2 2102-------------------------
-#define res_2102_06_indx    8
-
-#define res_2100_06         0x64000000 // -------------------- BESCHLEUNIGUNG FAHRPROGRAM (SPEED UP 2 2100???-------------------------
-#define res_2100_06_indx    9
-
-#define res_2200_02         0x0F000000 // -------------------- HOCHLAUFRAMPE HEBEN LASTTEIL 2200-------------------------
-#define res_2200_02_indx    10
-
-#define res_2200_06         0x0F000000 // -------------------- HOCHLAUFRAMPE HEBEN LASTTEIL 2200-------------------------
-#define res_2200_06_indx    11
-
-#define res_2001_01         0x05000000 // -------------------- LOGBUCH 2001-------------------------
-#define res_2001_01_indx    12
-
-#define res_2101_02         0x32000000 // -------------------- BESCHLEUNIGUNG MITFAHRER SUBINDEX 02 2101-------------------------
-#define res_2101_02_indx    13
-
-#define res_2101_06         0x32000000 // -------------------- BESCHLEUNIGUNG MITFAHRER SUBINDEX 06 2101-------------------------
-#define res_2101_06_indx    14
-
-#define res_2201_02         0x19000000 // -------------------- AUSLAUFRAMPE HEBEN LASTTEIL SUBINDEX 2 2201-------------------------
-#define res_2201_02_indx    15
-
-#define res_2201_06         0x19000000 // -------------------- AUSLAUFRAMPE HEBEN LASTTEIL SUB INDEX 6 2201-------------------------
-#define res_2201_06_indx    16
-
-#define res_2103_06         0x96000000 // -------------------- UNKNOWN 2103 SUBINX 06-------------------------
-#define res_2103_06_indx    17
-
-#define res_2103_02         0x96000000 // -------------------- UNKNOWN 2103 SUBINX 02-------------------------
-#define res_2103_02_indx    18
-
-#define res_2104_02         0x82000000 // -------------------- AUSROLLBREMSE MITFAHRER 2104 SUBINX 02-------------------------
-#define res_2104_02_indx    19
-
-#define res_2106_06         0x82000000 // -------------------- AUSROLLBREMSE MITFAHRER 2104 SUBINX 06-------------------------
-#define res_2106_06_indx    20
-
-#define res_2002_01         0x22222222 //---- Seri Nummer -----
-#define res_2002_01_indx    21
-
-#define res_2020_01         0x49010000 //---- betriebszeit -----
-#define res_2020_01_indx    22
-
-#define res_2413_02         0x00000000 //---- Lenkkorrektur ----
-#define res_2413_02_indx    23
-
-#define res_2923_02         0x00000000 //---- Bandagenentspannung ---
-#define res_2923_02_indx    24
-
-#define res_2414_02         0x00000000 //---- Lenkübersetzung ---
-#define res_2414_02_indx    25
-
-#define res_2461_02         0x00000000 //---- Status ---
-#define res_2461_02_indx    26
-
-#define res_2001_02         0x00000000 //---- Soll Indx Logbuch ---
-#define res_2001_02_indx    27
-
-#define res_2001_03         0x00000000 //---- Ist Indx Logbuch ---
-#define res_2001_03_indx    28
-
-#define res_2411_02         0x00000000 //---- Kennlinie ---
-#define res_2411_02_indx    29
-
-#define res_2405_02         0x00000000 //---- SollLenkwinkel Link ----
-#define res_2405_02_indx    30
-
-#define res_2402_02         0x00000000 //---- Istwertgeber Null ----
-#define res_2402_02_indx    31
-
-#define res_2405_07         0x00000000 //---- SollLenkwinkel Link Min value subindx 7 ---
-#define res_2405_07_indx    32
-
-#define res_2460_02         0x00000000 //---- Status Lenken ----------
-#define res_2460_02_indx    33
-
-#define res_2404_02         0x00000000 //---- SollLenkwinkel Recht ----
-#define res_2404_02_indx    34
-
-#define res_2401_02         0x00000000 //---- IstLenkwinkel Recht ----
-#define res_2401_02_indx    35
-
-#define res_2403_02         0x00000000 //---- SollLenkwinkel Null ----
-#define res_2403_02_indx    36
-
-#define res_2400_02         0x00000000 //---- IstLenkwinkel Null not teach---
-#define res_2400_02_indx    37
-
-#define res_2403_07         0x00000000 //---- Min IstLenkwinkel Null teach---
-#define res_2403_07_indx    38
-
-#define res_2404_07         0x00000000 //---- Min IstLenkwinkel Recht teach---
-#define res_2404_07_indx    39
-
-#define res_2405_03         0x00000000 //---- Min value lenken
-#define res_2405_03_indx    40
-
-#define res_2404_03         0x00000000 //---- Min value lenken
-#define res_2404_03_indx    41
-
-#define res_2403_03         0x00000000 //---- Min value lenken
-#define res_2403_03_indx    42
-
-#define res_2405_04         0x00000000 //---- Max value lenken
-#define res_2405_04_indx    43
-
-#define res_2404_04         0x00000000 //---- Max value lenken
-#define res_2404_04_indx    44
-
-#define res_2403_04         0x00000000 //---- Max value lenken
-#define res_2403_04_indx    45
-
-#define res_2402_07         0x00000000 //---- Ist Teach-In Link
-#define res_2402_07_indx    46
-
-#define res_2401_07         0x00000000 //---- Ist Teach-In Recht 
-#define res_2401_07_indx    47
-
-#define res_2400_07         0x00000000 //---- Ist Teach-In Null
-#define res_2400_07_indx    48
-
+//#define Truck_ID            "ECE 225       2011" // must divide 4 or some " " will be added at the end
 #define Truck_ID            "ECE225        2015" // must be even number of char
 #define Truck_ID_indx       49          // +6 words ceil(22/4.0)
 
@@ -213,21 +74,130 @@ public:
     uint32_t index;
     uint32_t address;
     uint32_t value;
+    
     struct SDO* next;
     uint8_t length;
     bool segmented;
 
+    uint32_t to_save;
+
     // Constructor
-    SDO(uint32_t _index, uint32_t _address, uint32_t _value, struct SDO* _next, uint8_t _length, bool _segmented){            
+    SDO(uint32_t _index, uint32_t _address, uint32_t _value, struct SDO* _next, uint8_t _length, bool _segmented, uint32_t _to_save){            
         index = _index;
         address = _address;
-        value = _value;
+        value = _value; // not value to be saved in SRAM but the 0x20002 value
         next = _next;
         length = _length;
         segmented = _segmented;
+        to_save = _to_save;
     }
 };
 
+static SDO res_4000_04(51, 0x0, 0x400004, NULL, 0x4, false, 0x00000004);  // ist drehzahl 16 bit
+
+static SDO res_4000_03(50, 0x0, 0x400003, &res_4000_04, 0x4, false, 0x00000002);  // ramp down
+
+static SDO res_4000_02(49, 0x0, 0x400002, &res_4000_03, 0x4, false, 0x00000002);  // ramp up
+
+static SDO res_4000_01(48, 0x0, 0x400001, &res_4000_02, 0x4, false, 0x00000001);  // soll drehzahl
+
+static SDO res_2400_07(47, 0x0, 0x240007, &res_4000_01, 0x4, false, 0x00000000);  
+
+static SDO res_2401_07(46, 0x0, 0x240107, &res_2400_07, 0x4, false, 0x00000000);
+
+static SDO res_2402_07(45, 0x0, 0x240207, &res_2401_07, 0x4, false, 0x00000000);
+
+static SDO res_2403_04(44, 0x0, 0x240304, &res_2402_07, 0x4, false, 0x00000000);
+
+static SDO res_2404_04(43, 0x0, 0x240404, &res_2403_04, 0x4, false, 0x00000000);
+
+static SDO res_2405_04(42, 0x0, 0x240504, &res_2404_04, 0x4, false, 0x00000000);
+
+static SDO res_2403_03(41, 0x0, 0x240303, &res_2405_04, 0x4, false, 0x00000000);
+
+static SDO res_2404_03(40, 0x0, 0x240403, &res_2403_03, 0x4, false, 0x00000000);
+
+static SDO res_2405_03(39, 0x0, 0x240503, &res_2404_03, 0x4, false, 0x00000000);
+
+static SDO res_2404_07(38, 0x0, 0x240407, &res_2405_03, 0x4, false, 0x00000000);
+
+static SDO res_2403_07(37, 0x0, 0x240307, &res_2404_07, 0x4, false, 0x00000000);
+
+static SDO res_2403_02(36, 0x0, 0x240302, &res_2403_07, 0x4, false, 0x00000000);
+
+static SDO res_2401_02(35, 0x0, 0x240102, &res_2403_02, 0x4, false, 0x00000000);
+
+static SDO res_2404_02(34, 0x0, 0x240402, &res_2401_02, 0x4, false, 0x00000000);
+
+static SDO res_2460_02(33, 0x0, 0x246002, &res_2404_02, 0x4, false, 0x00000000);
+
+static SDO res_2405_07(32, 0x0, 0x240507, &res_2460_02, 0x4, false, 0x00000000);
+
+static SDO res_2402_02(31, 0x0, 0x240202, &res_2405_07, 0x4, false, 0x00000000);
+
+static SDO res_2405_02(30, 0x0, 0x240502, &res_2402_02, 0x4, false, 0x00000000);
+
+static SDO res_2411_02(29, 0x0, 0x241102, &res_2405_02, 0x4, false, 0x00000000);
+
+static SDO res_2001_03(28, 0x0, 0x200103, &res_2411_02, 0x4, false, 0x00000000);
+
+static SDO res_2001_02(27, 0x0, 0x200102, &res_2001_03, 0x4, false, 0x00000000);
+
+static SDO res_2461_02(26, 0x0, 0x246102, &res_2001_02, 0x4, false, 0x00000000);
+
+static SDO res_2414_02(25, 0x0, 0x241402, &res_2461_02, 0x4, false, 0x00000000);
+
+static SDO res_2923_02(24, 0x0, 0x292302, &res_2414_02, 0x4, false, 0x00000000);
+
+static SDO res_2413_02(23, 0x0, 0x241302, &res_2923_02, 0x4, false, 0x00000000);
+
+static SDO res_2020_01(22, 0x0, 0x202001, &res_2413_02, 0x4, false, 0x49010000);
+
+static SDO res_2002_01(21, 0x0, 0x200201, &res_2020_01, 0x4, false, 0x11111111);
+
+static SDO res_2106_06(20, 0x0, 0x210606, &res_2002_01, 0x4, false, 0x82000000);
+
+static SDO res_2104_02(19, 0x0, 0x210402, &res_2106_06, 0x4, false, 0x82000000);
+
+static SDO res_2103_02(18, 0x0, 0x210302, &res_2104_02, 0x4, false, 0x96000000);
+
+static SDO res_2103_06(17, 0x0, 0x210306, &res_2103_02, 0x4, false, 0x96000000);
+
+static SDO res_2201_06(16, 0x0, 0x220106, &res_2103_06, 0x4, false, 0x19000000);
+
+static SDO res_2201_02(15, 0x0, 0x220102, &res_2201_06, 0x4, false, 0x19000000);
+
+static SDO res_2101_06(14, 0x0, 0x210106, &res_2201_02, 0x4, false, 0x32000000);
+
+static SDO res_2101_02(13, 0x0, 0x210102, &res_2101_06, 0x4, false, 0x32000000);
+
+static SDO res_2001_01(12, 0x0, 0x200101, &res_2101_02, 0x4, false, 0x05000000);
+
+static SDO res_2200_06(11, 0x0, 0x220006, &res_2001_01, 0x4, false, 0x0F000000);
+
+static SDO res_2200_02(10, 0x0, 0x220002, &res_2200_06, 0x4, false, 0x0F000000);
+
+static SDO res_2100_06(9, 0x0,  0x210006, &res_2200_02, 0x4, false, 0x64000000);
+
+static SDO res_2102_06(8, 0x0,  0x210206, &res_2100_06, 0x4, false, 0x32000000);
+
+static SDO res_2102_02(7, 0x0,  0x210202, &res_2102_06, 0x4, false, 0x32000000);
+
+static SDO res_2100_02(6, 0x0,  0x210002, &res_2102_02, 0x4, false, 0x2E740000);
+
+static SDO res_2020_02(5, 0x0,  0x202002, &res_2100_02, 0x4, false, 0x2E740000);
+
+static SDO res_2002_02(4, 0x0,  0x200202, &res_2020_02, 0x4, false, 0x00000002);
+
+static SDO res_2000_03(3, 0x0,  0x200003, &res_2002_02, 0x4, false, 0x01682251);
+
+static SDO res_2000_01(2, 0x0,  0x200001, &res_2000_03, 0x4, false, 0x62498551);
+
+static SDO first_SDO(1, 0x0,    0x200000, &res_2000_01, 0x4, false, 0x09000000);
+
+#define Truck_ID            "ECE225        2015" // must be even number of char
+//#define Truck_ID              "ECE225        2011" // simpler truck
+//#define Truck_ID              "EFGBAUREIHE2_32014" // other truck
 
 
 class LOITRUCK {

@@ -45,31 +45,46 @@ uint8_t prepare_Command_ID(bool end_msg, LOITRUCK* loiTruck){
 
       switch (command_ID) {
         case 0x20: // initiate domain download            
-            command_ID = 0x60;  // Server reply                        
-            break;
-        case 0x00:  // download domain segment toggle = 0
-            command_ID |= 0x20;  // or to remain toggle bit
-            break;
-        case 0x40:  // initiate domain upload
-            if (loiTruck->RxData[2] == 0x24 && loiTruck->RxData[3] == 0x02)
             {
+              command_ID = 0x60;  // Server reply                        
+              break;
+            }
+        case 0x00:  // download domain segment toggle = 0
+            {
+              command_ID |= 0x20;  // or to remain toggle bit
+              break;
+            }            
+        case 0x40:  // initiate domain upload
+            {
+              if (loiTruck->RxData[2] == 0x24 && loiTruck->RxData[3] == 0x02)
+              {
                 command_ID |= 0x0B;    // follow Noris excel   
-            } else {
+              } else {
                 command_ID |= 0x03;  // n = 0; e = s = 1
+              }
+            
+              break;        
             }
             
-            break;        
         case 0x60:  // upload domain segment with toggle bit = 0
-            if (end_msg) {command_ID = 0x01;} else {command_ID = 0x00;}
-            break;
+            {
+              if (end_msg) {command_ID = 0x01;} else {command_ID = 0x00;}
+              break;
+            }
+            
         case 0x70:  // upload domain segment with toggle bit = 1
-            if (end_msg) {command_ID = 0x11;} else {command_ID = 0x10;}
-            break;
+            {
+              if (end_msg) {command_ID = 0x11;} else {command_ID = 0x10;}
+              break;
+            }
+            
         case 0xc0:  // initiate block download
-            command_ID = 0xA0;
-            break;
-        default : // Unknown
-            command_ID = 0x00;
+            {
+              command_ID = 0xA0;
+              break;
+            }
+            
+        default : // Unknown            
             break;
         }    
     
@@ -83,6 +98,8 @@ uint8_t write_parameter(LOITRUCK* loiTruck){
   struct SDO* found = find_value(&loiTruck->my_SDO_List, tmp);
 
   if ( found != NULL){
+    // save into SRAM
+    Serial.println("Write to SRAM");
     *(__IO uint32_t *)(found->address) = value;
     loiTruck->TxData[0] = prepare_Command_ID(false, loiTruck);
     loiTruck->TxData[1] = loiTruck->RxData[1];
@@ -93,6 +110,25 @@ uint8_t write_parameter(LOITRUCK* loiTruck){
     loiTruck->TxData[6] = 0x00;
     loiTruck->TxData[7] = 0x00;
   } else {
+    // get last SDO item in the linked list
+    struct SDO last_SDO = *(get_last_SDO(&loiTruck->my_SDO_List));
+    struct SDO temp(0,0,0,NULL,0,false,0x0);
+
+    // if not found then append new SDO into list
+    
+    if (loiTruck->RxData[2] < 0x50) // seed and key
+    {
+      temp = SDO(last_SDO.index + (last_SDO.length / 4),SRAM_BANK_ADDR + WRITE_READ_ADDR + ((last_SDO.index + (last_SDO.length / 4)) << 2),tmp,NULL,0x01,false,0x0);  
+    
+
+      append_Linked_List(&loiTruck->my_SDO_List, &temp);
+    
+      // Save into SRAM
+      *(__IO uint32_t *)(temp.address) = value;
+      Serial.println("Write to SRAM");
+    }
+    
+
     loiTruck->TxData[0] = prepare_Command_ID(false, loiTruck);
     loiTruck->TxData[1] = loiTruck->RxData[1];
     loiTruck->TxData[2] = loiTruck->RxData[2];
@@ -103,6 +139,9 @@ uint8_t write_parameter(LOITRUCK* loiTruck){
     loiTruck->TxData[7] = 0x00;
     return 0;
   }
+
+  
+
   
   return 1;
 }
@@ -121,7 +160,7 @@ uint8_t read_parameter(LOITRUCK* loiTruck){
   //Serial.println(found->value, HEX);
   if (check_COB_ID_range(loiTruck->RxHeader.Identifier)){
     reply = 1;
-    Serial.println("In Range");
+    //Serial.println("In Range");
     if (found == NULL){
     loiTruck->TxData[0] = prepare_Command_ID(false, loiTruck);
     loiTruck->TxData[1] = loiTruck->RxData[1];
@@ -139,7 +178,7 @@ uint8_t read_parameter(LOITRUCK* loiTruck){
     // if loiTruck->segmented or not
     if (found->segmented){
       // first message
-      if (loiTruck->segment_count == 0){
+      if ((loiTruck->segment_count == 0) || (loiTruck->RxData[0] == 0x40)){
         loiTruck->segmented = true;   // Flag at the beginning
         loiTruck->add_count = 0;
         loiTruck->bit_swap = 0;
@@ -157,8 +196,8 @@ uint8_t read_parameter(LOITRUCK* loiTruck){
         
 
         loiTruck->segment_count++;
-      // normal message
-      } else if ((loiTruck->segment_count <= (found->length / 7.0)) && ((loiTruck->RxData[0] == 0x60) | (loiTruck->RxData[0] == 0x70))) { // each message send 7 bytes data
+      
+      } else if ((loiTruck->segment_count <= (found->length / 7.0)) && ((loiTruck->RxData[0] == 0x60) || (loiTruck->RxData[0] == 0x70))) { // each message send 7 bytes data
         // get 2 word EFG_ 
         uint32_t read_from_SRAM_1st = *(__IO uint32_t *)(found->address + ((loiTruck->add_count++) * 4));
         uint32_t read_from_SRAM_2nd = *(__IO uint32_t *)(found->address + ((loiTruck->add_count++) * 4));
@@ -171,9 +210,12 @@ uint8_t read_parameter(LOITRUCK* loiTruck){
         // 3(rest) + 4
         // 4(rest) + 3
 
+        Serial.println(read_from_SRAM_1st, HEX);
+        Serial.println(read_from_SRAM_2nd, HEX);
+
         switch (loiTruck->rest_count)
         {
-        case 1:
+        case 1:          
           loiTruck->TxData[0] = loiTruck->bit_swap;  
           loiTruck->TxData[1] = read_from_SRAM_1st >> 24;
           loiTruck->TxData[2] = read_from_SRAM_1st >> 16;
@@ -248,10 +290,19 @@ uint8_t read_parameter(LOITRUCK* loiTruck){
         loiTruck->segment_count = 0;
         loiTruck->add_count = 0;
         loiTruck->rest_count = 0;
+        loiTruck->rest_char = 0;
+        
       }
 
     // Not loiTruck->segmented      
     } else {
+
+        loiTruck->segmented = false;        
+        loiTruck->segment_count = 0;
+        loiTruck->add_count = 0;
+        loiTruck->rest_count = 0;
+        loiTruck->rest_char = 0;
+
         uint32_t read_from_SRAM_1st = *(__IO uint32_t *)(found->address);        
 
         loiTruck->TxData[0] = prepare_Command_ID(false, loiTruck);   
@@ -264,6 +315,10 @@ uint8_t read_parameter(LOITRUCK* loiTruck){
         loiTruck->TxData[7] = read_from_SRAM_1st;
     }
 
+    // print out 0x400001 message
+    if ((loiTruck->RxData[2] == 0x40) && (loiTruck->RxData[1] == 0x00) && (loiTruck->RxData[3] == 0x01)){
+      Serial.println("-----------TRUCKSCOPE SAMPLE 0x400001-------------");
+    }
     
   }
   }
@@ -369,25 +424,33 @@ static void Fill_Buffer(uint32_t *pBuffer, uint32_t uwBufferLength, uint16_t uwO
 
 bool find_Scenario(LOITRUCK* loiTruck){  
   bool result = true;
-  /* ------------------------- check current Scenario ------------------------- */
-  if (loiTruck->current_Scenario == NULL){
-    /* ------------------------ first scenario Scenario_1 ----------------------- */
-    if (&Scenario_1 != NULL)
-      loiTruck->current_Scenario = &Scenario_1;
-    else {
-      //Serial.println("Cannot find Scenario_1 object!");
-      result = false;
-    }
-      
-    
-  } else {
-    /* --------------------------- not first scenario --------------------------- */
-    if (loiTruck->current_Scenario->_next == NULL){
-      result = false;
+  
+  //#ifdef Scenario_1
+  
+    /* ------------------------- check current Scenario ------------------------- */
+    if (loiTruck->current_Scenario == NULL){
+      /* ------------------------ first scenario Scenario_1 ----------------------- */
+      if (&Scenario_1 != NULL) {
+        loiTruck->current_Scenario = &Scenario_1;
+        result = true;
+      }
+      else {
+        //Serial.println("Cannot find Scenario_1 object!");
+        result = false;
+      }
+
+
     } else {
-      loiTruck->current_Scenario = loiTruck->current_Scenario->_next;
-    }    
-  }
+      /* --------------------------- not first scenario --------------------------- */
+      if (loiTruck->current_Scenario->_next == NULL){
+        result = false;
+      } else {
+        loiTruck->current_Scenario = loiTruck->current_Scenario->_next;
+        result = true;
+      }    
+    }
+  
+  //#endif
 
   return result;
 }
@@ -432,6 +495,22 @@ String currentCPU(void){
 uint8_t convert_Scenario_To_Code(Scenario* sce){
   //Serial.print("Convert:"); Serial.println(sce->_output_type + 1);
   return sce->_output_type + 1;    // index start at 0
+}
+
+struct SDO* get_last_SDO(struct SDO** list_SDO){
+
+  struct SDO* last = *list_SDO;
+
+  if (last == NULL){
+    return NULL;
+  } 
+    
+  // traverse until the end
+  while (last->next != NULL){
+       last = last->next;    
+  }  
+
+  return last;
 }
 
 
