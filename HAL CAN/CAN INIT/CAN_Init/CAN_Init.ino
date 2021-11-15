@@ -10,10 +10,7 @@
 #include "src/UTILITY/UTILITY.h"
 
 
-/* ---------------------------- For TRACE32 Debug --------------------------- */
-//USBSerial SerialUSB1(false, "DebugPort");
-//UsbDebugCommInterface debugComm(&SerialUSB1);
-//ThreadDebug           threadDebug(&debugComm, DEBUG_BREAK_IN_SETUP);
+
 
 using namespace mbed;
 
@@ -26,6 +23,12 @@ using namespace mbed;
 
 #ifdef CORE_CM7
 
+/* ---------------------------- For TRACE32 Debug --------------------------- */
+//USBSerial SerialUSB1(false, "DebugPort");
+//UsbDebugCommInterface debugComm(&SerialUSB1);
+//ThreadDebug           threadDebug(&debugComm, DEBUG_BREAK_IN_SETUP);
+
+
 LOITRUCK loiTruck = LOITRUCK(); // only loiTruck on M7
 
 /* ------------------------------ RTC CALLBACK ------------------------------ */
@@ -33,18 +36,18 @@ LOITRUCK loiTruck = LOITRUCK(); // only loiTruck on M7
 void HAL_RTC_AlarmAEventCallback(RTC_HandleTypeDef *hrtc){
   /* ----- when alarm ring, enable timer interrupt and set alarm 5s later ----- */
   loiTruck.alarm = true;
-  Serial.print("eeee");
+  //Serial.println("err");
 
   if (!loiTruck.triggered){
     /* --------------------------- 1st time triggered --------------------------- */
     
     //TIMER6_Init(&loiTruck);
     loiTruck.triggered = true;  // for logic in RTC_AlarmConfig function
-    RTC_AlarmConfig(&loiTruck);    
+    RTC_CalendarConfig(&loiTruck);
+    RTC_AlarmConfig(&loiTruck); // alarm for end of scenario
         
   } else {
-    /* ----------------------------- Deactive Alarm ----------------------------- */
-    //loiTruck.triggered = false; 
+    /* ----------------------------- Deactive Alarm ----------------------------- */    
     HAL_RTC_DeactivateAlarm(&loiTruck.hrtc, RTC_ALARM_A);
     loiTruck.finish_Scenario = true;
   }  
@@ -58,12 +61,12 @@ void HAL_RTC_MspInit(void){
     /* ------------------------------- turn on LSE ------------------------------ */
     RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_LSE;
     RCC_OscInitStruct.LSEState = RCC_LSE_ON;
-    RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
+    //RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
 
     if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK){
-      RPC1.println("M4: HAL_RCC_OscConfig error!");
+      Serial.println("M7: HAL_RCC_OscConfig error!");
     } else {
-      RPC1.println("M4: HAL_RCC_OscConfig OK!");
+      Serial.println("M7: HAL_RCC_OscConfig OK!");
     }
 
     /* -------------------------- select LSE as RTCCLK -------------------------- */
@@ -71,9 +74,9 @@ void HAL_RTC_MspInit(void){
     RCC_RTCPeriClkInit.RTCClockSelection = RCC_RTCCLKSOURCE_LSE;
 
     if (HAL_RCCEx_PeriphCLKConfig(&RCC_RTCPeriClkInit) != HAL_OK){
-      RPC1.println("M4: HAL_RCCEx_PeriphCLKConfig error!");
+      Serial.println("M7: HAL_RCCEx_PeriphCLKConfig error!");
     } else {
-      RPC1.println("M4: HAL_RCCEx_PeriphCLKConfig OK!");
+      Serial.println("M7: HAL_RCCEx_PeriphCLKConfig OK!");
     }
 
     /* ---------------------------- Enable RTC Clock ---------------------------- */
@@ -87,67 +90,24 @@ void HAL_RTC_MspInit(void){
     loiTruck.ExtiConfig.Trigger = EXTI_TRIGGER_RISING;
     
     if (HAL_EXTI_SetConfigLine(&loiTruck.hexti, &loiTruck.ExtiConfig) != HAL_OK){
-      RPC1.println("M4: HAL_EXTI_SetConfigLine error!");
+      Serial.println("M7: HAL_EXTI_SetConfigLine error!");
     } else {
-      RPC1.println("M4: HAL_EXTI_SetConfigLine OK!");
+      Serial.println("M7: HAL_EXTI_SetConfigLine OK!");
     }
 
 
     /* -------------------- enable RTC ALarm IRQ in the NVIC -------------------- */
-    NVIC_SetPriority(RTC_Alarm_IRQn, (uint32_t)&RTC_Alarm_IRQHandler);
+    NVIC_SetVector(RTC_Alarm_IRQn, (uint32_t)&RTC_Alarm_IRQHandler);
     //NVIC_SetPriority(RTC_Alarm_IRQn,1,0);
     NVIC_EnableIRQ(RTC_Alarm_IRQn);   
 }
 
 void RTC_Alarm_IRQHandler(void){
-  //Serial.println("error");  
+    //Serial.println("error");  
     HAL_RTC_AlarmIRQHandler(&loiTruck.hrtc);
 }
 
-/* ------------------------------ RPC PROCEDURE ----------------------------- */
-// M4 will monitor Scenario and trigger function to update loiTruck run on M7
-int updateData(int code_id, int _delay){  
 
-  //Serial.println("code_id:" + String(code_id));
-  
-  switch (code_id)
-  {
-  case 1:
-    /* ---------------------------------- delay --------------------------------- */
-    loiTruck.delay = _delay;
-    return 1;
-    break;
-  case 2:
-    /* ------------------------------- predefined ------------------------------- */
-    loiTruck.send_predefined_CAN = true;
-    return 1;
-    break;
-  case 3:
-    /* ----------------------------- manipulate var ----------------------------- */
-    loiTruck.manipulate_var = true;
-    return 2;
-    break;
-  case 4:
-    /* --------------------------------- ignore --------------------------------- */
-    loiTruck.ignore = true;
-    return 1;
-    break;
-  case 5:
-    /* ------------------------------ End Scenario ------------------------------ */
-    loiTruck.delay = 0;
-    loiTruck.send_predefined_CAN = false;
-    loiTruck.manipulate_var = false;
-    loiTruck.ignore = false;
-    return 1;
-    break;
-
-  
-  default:
-    return 0;
-    break;
-  }
-
-}
 
 
 
@@ -179,7 +139,7 @@ int my_can_filter(can_t *obj, uint32_t id, uint32_t mask, CANFormat format, int3
   
 /* ----- Configure global filter: Filter all remote frames with STD and ----- */
 /* -------- EXT ID Reject non matching frames with STD ID and EXT ID -------- */
-    
+  /*  
   if (HAL_FDCAN_ConfigGlobalFilter(&loiTruck->my_can.CanHandle, FDCAN_ACCEPT_IN_RX_FIFO0, FDCAN_ACCEPT_IN_RX_FIFO0, FDCAN_FILTER_REMOTE, FDCAN_FILTER_REMOTE) != HAL_OK){
     //Error_Handler();
     Serial.println("HAL_FDCAN_ConfigGlobalFilter error!");
@@ -193,7 +153,7 @@ int my_can_filter(can_t *obj, uint32_t id, uint32_t mask, CANFormat format, int3
   } else {
     Serial.println("HAL_FDCAN_ConfigFilter OK");
   }
-  
+  */
 
   /* ---------------------------- Enable Interrupt ---------------------------- */
    
@@ -271,12 +231,12 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 */
 
 void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs){
-  if ((RxFifo0ITs & FDCAN_IT_RX_FIFO0_NEW_MESSAGE) != RESET){
+  //if ((RxFifo0ITs & FDCAN_IT_RX_FIFO0_NEW_MESSAGE) != RESET){
 
     loiTruck.receiveMsg = true;
     
     // DO SOMETHING
-  }
+  //}
 }
 
 void HAL_FDCAN_TimeoutOccurredCallback(FDCAN_HandleTypeDef *hfdcan){
@@ -436,7 +396,7 @@ void setup() {
   
     // Initialize RPC lib, also boot M4 core
     RPC1.begin();
-    RPC1.bind("updateData",updateData);
+    
         
     Serial.begin(115200);
     while(!Serial);
@@ -496,7 +456,7 @@ void setup() {
     /* -------------------------------- Scenario -------------------------------- */
     if (find_Scenario(&loiTruck)){
       Serial.println("M7: Found First Scenario");
-      if (RTC_AlarmConfig(&loiTruck)){
+      if (RTC_AlarmConfig(&loiTruck)){ // set alarm for start of scenario
         Serial.println("M7: Alarm Config OK");
       } else {
         Serial.println("M7: Alarm Config error");
@@ -512,9 +472,11 @@ void loop() {
   /* ----------------------------- Read and Reply ----------------------------- */
   /* -------------------------------------------------------------------------- */
   
+  
+
   if (loiTruck.receiveMsg){
 
-     Serial.println("Receive mess");
+     //Serial.println("Receive mess");
     
     
     
@@ -538,7 +500,7 @@ void loop() {
 
     Serial.println();  
         
-      
+      // READ COMMAND
       if ((((loiTruck.RxData[0] & 0xF0) == 0x40) | ((loiTruck.RxData[0] & 0xF0) == 0x60) | loiTruck.segmented)){        
           
           if (read_parameter(&loiTruck)){
@@ -549,10 +511,11 @@ void loop() {
                 Error_Handler();
               }            
           }
-                                                                  
+          
+      // WRITE COMMAND                                                            
       } else if ((loiTruck.RxData[0] & 0xF0) == 0x20) {
         
-        
+        Serial.println("Write Command!");
         write_parameter(&loiTruck);  
 
         loiTruck.TxHeader.Identifier = prepare_ID(loiTruck.RxHeader.Identifier);
@@ -620,14 +583,16 @@ void loop() {
     // signal R7 start of Scenario
     Serial.println("-------------------------------------");
     Serial.println("|        Start of Scenario          |");
-   
-    RPC1.call("updateData",convert_Scenario_To_Code(loiTruck.current_Scenario), loiTruck.delay);    
+
+    
+      
+        
 
     // set Scenario var
     switch (convert_Scenario_To_Code(loiTruck.current_Scenario))
     {
     case 1: // delay
-      loiTruck.delay = loiTruck->current_Scenario._output_timestamp;
+      loiTruck.delay = loiTruck.current_Scenario->_output_timestamp;
       break;
     case 2: // predefined CAN
       // not yet
@@ -635,21 +600,41 @@ void loop() {
     case 3: // function
       {
       // calculate sample rate
-      loiTruck.sample_rate = (int)(loiTruck.current_Scenario->_duration/257) 
+      loiTruck.sample_rate = (int)((loiTruck.current_Scenario->_duration * 1000)/250); // to ensure buffer_index < 256
+      
+      struct SDO* found = find_value(&loiTruck.my_SDO_List, loiTruck.current_Scenario->_output_function->_SDO_value);
 
-      double a = loiTruck.current_Scenario->_output_function->_a;
-      double b = loiTruck.current_Scenario->_output_function->_b;
-      double c = loiTruck.current_Scenario->_output_function->_c;
-      double d = loiTruck.current_Scenario->_output_function->_d;
+      Serial.print("Sample Rate:"); Serial.println(loiTruck.sample_rate);
+      Serial.print("Manipulate Address:"); Serial.println(found->address, HEX);
+      
+      double temp_a = loiTruck.current_Scenario->_output_function->_a;
+      double temp_b = loiTruck.current_Scenario->_output_function->_b;
+      double temp_c = loiTruck.current_Scenario->_output_function->_c;
+      double temp_d = loiTruck.current_Scenario->_output_function->_d;
+      
       // calculate buffer
-      for (int i = 0; i < 257; i++){
-        loiTruck.mani_buffer[i] = (int) (a * (i * loiTruck.sample_rate) * (i * loiTruck.sample_rate) * (i * loiTruck.sample_rate) + \
-                                        b * (i * loiTruck.sample_rate) * (i * loiTruck.sample_rate) + \          
-                                        c * (i * loiTruck.sample_rate) + \
-                                        d);
-
+      if (!loiTruck.current_Scenario->_output_function->_sin){
+        for (int i = 0; i < 256; i++){
+        loiTruck.mani_buffer[i] = (int) (temp_a * (i * loiTruck.sample_rate) * (i * loiTruck.sample_rate) * (i * loiTruck.sample_rate) + \
+                                        temp_b * (i * loiTruck.sample_rate) * (i * loiTruck.sample_rate) + \          
+                                        temp_c * (i * loiTruck.sample_rate) + \
+                                        temp_d);
+        }  
+      } else {
+        for (int i = 0; i < 256; i++){
+        loiTruck.mani_buffer[i] = (int) (temp_a * sin(i * loiTruck.sample_rate) * sin(i * loiTruck.sample_rate) * sin(i * loiTruck.sample_rate) + \
+                                        temp_b * sin(i * loiTruck.sample_rate) * sin(i * loiTruck.sample_rate) + \          
+                                        temp_c * sin(i * loiTruck.sample_rate) + \
+                                        temp_d);
+        }  
       }
       
+       // Call M4
+       //RPC1.call("updateData",5,0); // for example only
+      
+      
+            
+        
       }
       break;
     case 4: // ignore
@@ -659,25 +644,15 @@ void loop() {
       break;
     }
 
+    RPC1.call("updateData",4, 0);
+
+    //RTC_AlarmConfig(&loiTruck); // set next alarm
+
   } else if ((loiTruck.triggered) && (loiTruck.finish_Scenario)){
     // signal R7 end of Scenario
-    
-    Serial.println("|         Stop of Scenario          |");
-    Serial.println("-------------------------------------");    
-    RPC1.call("updateData",5, loiTruck.delay);    
-    loiTruck.triggered = false;  
 
-    // reset Scenario var
-
-
-    // find next Scenario
-    if (find_Scenario(&loiTruck)){
-      RPC1.println("Found Next Scenario");
-      RTC_CalendarConfig(&loiTruck);
-      RTC_AlarmConfig(&loiTruck);
-
-      // reset loiTruck Scenario var
-      loiTruck.alarm = false;
+    // reset loiTruck Scenario var
+      
       loiTruck.finish_Scenario = false;
       loiTruck.ignore = false;
       loiTruck.delay = 0;
@@ -685,22 +660,46 @@ void loop() {
       //loiTruck.manipulate_var = false;      
       loiTruck.sample_rate = 0;
       loiTruck.last_millis = 0;
+      
+    
+    Serial.println("|         Stop of Scenario          |");
+    Serial.println("-------------------------------------");    
+    //RPC1.call("updateData",5, loiTruck.delay);    
+    loiTruck.triggered = false;  
+    
+    // reset Scenario var
+
+
+    // find next Scenario
+    if (find_Scenario(&loiTruck)){
+      Serial.println("Found Next Scenario");
+      RTC_CalendarConfig(&loiTruck);
+      RTC_AlarmConfig(&loiTruck);
+        
+      
       loiTruck.buffer_index = 0;
     }
   }
     loiTruck.alarm = false;
-  } else {
-    // call fucntion if needed
-    if ((loiTruck.triggered) && (!loiTruck.finish_Scenario)){
+  } 
+    
+  // call fucntion if needed
+  if ((loiTruck.triggered) && (!loiTruck.finish_Scenario) && (!loiTruck.alarm)){
+      //Serial.println("Manipulate");
       // call func
       if ((millis() - loiTruck.last_millis) >= loiTruck.sample_rate){
         // update last_millis
+        //Serial.println((millis() - loiTruck.last_millis));
         loiTruck.last_millis = millis();
         // call manipulate function
-        manipulate_SDO_on_SRAM(&(loiTruck.current_Scenario->_output_function), loiTruck.buffer_index++, &loiTruck);
+        if (loiTruck.buffer_index < 256){
+          manipulate_SDO_on_SRAM(*(loiTruck.current_Scenario->_output_function), loiTruck.buffer_index++, &loiTruck);  
+          
+        } 
+        
       }
-    }
-  }
+   }
+  
   
   /* -------------------------------------------------------------------------- */
   /*
@@ -717,6 +716,7 @@ void loop() {
   /* ---------------------------------- xxxx ---------------------------------- */
   /* -------------------------------------------------------------------------- */
 
+  
   String buffer = "";
   while (RPC1.available()){
     buffer += (char)RPC1.read();
@@ -739,14 +739,22 @@ void loop() {
 
 #ifdef CORE_CM4
 
+/* ------------------------------ RPC PROCEDURE ----------------------------- */
+// M4 will monitor Scenario and trigger function to update loiTruck run on M7
+int updateData(int code_id, int _delay){  
 
+  RPC1.println("M4 is called");
+  
+  delay(700);
+}
 
 
 void setup(){
     // initialize RPC lib
     RPC1.begin();
+    RPC1.bind("updateData",updateData);
     Serial.begin(115200); // must have for RPC print
-    while(!Serial);
+    //while(!Serial);
     
     
     
@@ -755,7 +763,7 @@ void setup(){
     //HAL_Init();
     
     //Serial.println("1");
-
+    //RPC1.println("setup M4 is called");
     
 }
 
@@ -765,11 +773,7 @@ void loop(){
   /* --------------------------- Check next Scenario -------------------------- */
   /* -------------------------------------------------------------------------- */
 
-  if (HAL_RTC_GetTime(&loiTruck.hrtc, &loiTruck.RTC_TimeRead, RTC_FORMAT_BIN) == HAL_OK){
-    RPC1.println("Minute:" + String(loiTruck.RTC_TimeRead.Minutes) + " Second:" + String(loiTruck.RTC_TimeRead.Seconds));
-  } else {
-    RPC1.println("Error Get Time");
-  }
+  
 
   
   

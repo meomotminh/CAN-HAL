@@ -332,12 +332,19 @@ int my_can_write(can_t *obj, CANMessage msg, int cc, LOITRUCK* loiTruck){
 
 
   // check if ignore or delay or send_predefined
-  if (!loiTruck->ignore){
+  if ((!loiTruck->ignore) || (loiTruck->fake_heart_beat)){
     HAL_Delay(loiTruck->delay);
     
+    if (loiTruck->fake_heart_beat){
+      //HAL_Delay(100);
+    }
+    
+
     if (HAL_FDCAN_AddMessageToTxFifoQ(&(loiTruck->my_can.CanHandle), &loiTruck->TxHeader, msg.data) != HAL_OK){
       Serial.println("Hier error addMessageToTx");
       return 0;
+    } else {
+      //Serial.println("Send success!");
     }
 
     if (!loiTruck->fake_heart_beat){

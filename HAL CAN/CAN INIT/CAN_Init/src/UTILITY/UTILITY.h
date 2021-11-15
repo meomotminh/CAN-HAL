@@ -38,6 +38,7 @@ String currentCPU(void);
 
 uint8_t convert_Scenario_To_Code(Scenario*);
 
+struct SDO* get_last_SDO(struct SDO**);
 
 
 #endif

@@ -81,14 +81,16 @@ public:
     double _c;
     double _d;
     uint32_t _SDO_value;
+    bool _sin;
 
     // constructor
-    My_Function(double a, double b, double c, double d, uint32_t value){
+    My_Function(double a, double b, double c, double d, uint32_t value, bool sin){
       _a = a;
       _b = b;
       _c = c;
       _d = d;
       _SDO_value = value;
+      _sin = sin;
     }
 
     My_Function(){}
@@ -132,12 +134,19 @@ public:
 };
 
 
-static My_Function function_linear(0.0, 0.0, 1.0, 1.0, 0x240207);  // SDO_value_240207 = 0.0(t)³ + 0.0(t)² + 1.0(t) + 1.0 
+static My_Function function_sinc(0.0, 0.0, 10.0, 20.0, 0x400001, true);
 
+static My_Function function_linear_2(0.0, 0.0, -1.0, 30.0, 0x400001, false);
+
+static My_Function function_linear_1(0.0, 0.0, 1.0, 1.0, 0x400001, false); 
+                                  // a*(t)³ + b*(t)² + c*(t) +d 
 /* ---------------------------- DEFINE SCRENARIO ---------------------------- */
-static Scenario Scenario_2(IN_TIME_STAMP, OUT_NONE, NULL, 10, NULL, 0, &function_linear, 10, NULL);
 
-static Scenario Scenario_1(IN_TIME_STAMP, OUT_NONE, NULL, 10, NULL, 0, &function_linear, 10, &Scenario_2);
+static Scenario Scenario_3(IN_TIME_STAMP, OUT_FUNCTION, NULL, 10, NULL, 0, &function_sinc, 30, NULL);
+
+static Scenario Scenario_2(IN_TIME_STAMP, OUT_FUNCTION, NULL, 10, NULL, 0, &function_linear_2, 30, &Scenario_3);
+
+static Scenario Scenario_1(IN_TIME_STAMP, OUT_FUNCTION, NULL, 10, NULL, 0, &function_linear_1, 30, &Scenario_2);
 
 
 
