@@ -136,17 +136,20 @@ public:
 
 static My_Function function_sinc(0.0, 0.0, 10.0, 20.0, 0x400001, true);
 
-static My_Function function_linear_2(0.0, 0.0, -1.0, 30.0, 0x400001, false);
+static My_Function function_linear_2(0.0, 0.0, -2.0, 40.0, 0x400001, false);
 
 static My_Function function_linear_1(0.0, 0.0, 1.0, 1.0, 0x400001, false); 
                                   // a*(t)³ + b*(t)² + c*(t) +d 
+
 /* ---------------------------- DEFINE SCRENARIO ---------------------------- */
+
+#define use_Scenario true
 
 static Scenario Scenario_3(IN_TIME_STAMP, OUT_FUNCTION, NULL, 10, NULL, 0, &function_sinc, 30, NULL);
 
 static Scenario Scenario_2(IN_TIME_STAMP, OUT_FUNCTION, NULL, 10, NULL, 0, &function_linear_2, 30, &Scenario_3);
 
-static Scenario Scenario_1(IN_TIME_STAMP, OUT_FUNCTION, NULL, 10, NULL, 0, &function_linear_1, 30, &Scenario_2);
+static Scenario Scenario_1(IN_TIME_STAMP, OUT_FUNCTION, NULL, 30, NULL, 0, &function_linear_1, 30, &Scenario_2);
 
 
 

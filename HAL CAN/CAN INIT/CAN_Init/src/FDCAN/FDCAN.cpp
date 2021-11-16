@@ -181,8 +181,8 @@ void Trd_internal_init(can_t *obj){
   /**
    * Config Timestamp & Enable Timestamp
    * **/
-  /*
-  if (HAL_FDCAN_ConfigTimestampCounter(&obj->CanHandle, FDCAN_TIMESTAMP_PRESC_1) != HAL_OK){
+  
+  if (HAL_FDCAN_ConfigTimestampCounter(&obj->CanHandle, FDCAN_TIMESTAMP_PRESC_2) != HAL_OK){
     Serial.println("HAL_FDCAN_ConfigTimestampCounter error");
   } else {
     Serial.println("HAL_FDCAN_ConfigTimestampCounter OK");
@@ -193,7 +193,7 @@ void Trd_internal_init(can_t *obj){
   } else {
     Serial.println("HAL_FDCAN_EnableTimestampCounter OK");
   }
-  */
+  
 
   /**
    * Config & Enable TT operation
@@ -210,7 +210,7 @@ void Trd_internal_init(can_t *obj){
   
 
   TT_Config.ExpTxTrigNbr = 1;
-  TT_Config.TURNumerator = 0x1FFFF;       // Must set
+  TT_Config.TURNumerator = 0xFF;       // Must set smaller -> faster
   TT_Config.TURDenominator = 0x1;         // Must set
   TT_Config.TriggerMemoryNbr = 1;
   
@@ -346,7 +346,7 @@ int my_can_write(can_t *obj, CANMessage msg, int cc, LOITRUCK* loiTruck){
     } else {
       //Serial.println("Send success!");
     }
-
+    
     if (!loiTruck->fake_heart_beat){
       Serial.print("S :\t"); Serial.print(loiTruck->TxHeader.Identifier,HEX); Serial.print(" ");
 
