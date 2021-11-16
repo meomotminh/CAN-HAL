@@ -50,6 +50,7 @@ static CANMessage fake[24] = {
                     CANMessage(0x703,temp5,1)
 };
 
+// 50ms
 
 // Declare SDO object value
 // Segment STANDARD (0x2000 - 0x20FF)
@@ -93,13 +94,21 @@ public:
     }
 };
 
-static SDO res_4000_04(51, 0x0, 0x400004, NULL, 0x4, false, 0x00000004);  // ist drehzahl 16 bit
+static SDO res_4007_08(55, 0x0, 0x400708, NULL, 0x4, false, 0x01000000);  // uint16 type
 
-static SDO res_4000_03(50, 0x0, 0x400003, &res_4000_04, 0x4, false, 0x00000002);  // ramp down
+static SDO res_4007_02(54, 0x0, 0x400702, &res_4007_08, 0x4, false, 0x01000000);  // uint16 type
 
-static SDO res_4000_02(49, 0x0, 0x400002, &res_4000_03, 0x4, false, 0x00000002);  // ramp up
+static SDO res_4007_01(53, 0x0, 0x400701, &res_4007_02, 0x4, false, 0x01000000);  // uint8 type
 
-static SDO res_4000_01(48, 0x0, 0x400001, &res_4000_02, 0x4, false, 0x00000001);  // soll drehzahl
+static SDO res_4007_00(52, 0x0, 0x400700, &res_4007_01, 0x4, false, 0x08000000);  // number of entries AC Betriebsgroessen
+
+static SDO res_4000_04(51, 0x0, 0x400004, &res_4007_00, 0x4, false, 0x04000000);  // ist drehzahl 16 bit
+
+static SDO res_4000_03(50, 0x0, 0x400003, &res_4000_04, 0x4, false, 0x02000000);  // ramp down
+
+static SDO res_4000_02(49, 0x0, 0x400002, &res_4000_03, 0x4, false, 0x02000000);  // ramp up
+
+static SDO res_4000_01(48, 0x0, 0x400001, &res_4000_02, 0x4, false, 0x01000000);  // soll drehzahl
 
 static SDO res_2400_07(47, 0x0, 0x240007, &res_4000_01, 0x4, false, 0x00000000);  
 
@@ -153,7 +162,7 @@ static SDO res_2413_02(23, 0x0, 0x241302, &res_2923_02, 0x4, false, 0x00000000);
 
 static SDO res_2020_01(22, 0x0, 0x202001, &res_2413_02, 0x4, false, 0x49010000);
 
-static SDO res_2002_01(21, 0x0, 0x200201, &res_2020_01, 0x4, false, 0x11111111);
+static SDO res_2002_01(21, 0x0, 0x200201, &res_2020_01, 0x4, false, 0x8e155301); 
 
 static SDO res_2106_06(20, 0x0, 0x210606, &res_2002_01, 0x4, false, 0x82000000);
 
@@ -244,6 +253,7 @@ public:
     bool found_parameter = false;
     bool sendMsg = false;
     bool fake_heart_beat;
+    uint8_t fake_index = 1;
 
 /* ------------------------------ FOR SEGMENTED ----------------------------- */
     uint8_t segment_count = 0;

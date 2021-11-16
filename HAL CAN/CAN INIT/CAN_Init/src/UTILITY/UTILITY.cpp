@@ -423,10 +423,11 @@ static void Fill_Buffer(uint32_t *pBuffer, uint32_t uwBufferLength, uint16_t uwO
 
 
 bool find_Scenario(LOITRUCK* loiTruck){  
-  bool result = true;
+  bool result = false;
   
-  //#ifdef Scenario_1
   
+  if (use_Scenario)
+  {
     /* ------------------------- check current Scenario ------------------------- */
     if (loiTruck->current_Scenario == NULL){
       /* ------------------------ first scenario Scenario_1 ----------------------- */
@@ -449,8 +450,7 @@ bool find_Scenario(LOITRUCK* loiTruck){
         result = true;
       }    
     }
-  
-  //#endif
+  }        
 
   return result;
 }

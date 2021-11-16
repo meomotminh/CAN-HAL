@@ -129,7 +129,7 @@ void manipulate_SDO_on_SRAM(My_Function func, int index, LOITRUCK* loiTruck){
     struct SDO* found = find_value(&loiTruck->my_SDO_List, func._SDO_value);
 
     if (found != NULL){
-      *(__IO uint32_t *)(found->address) = loiTruck->mani_buffer[index];    
+      *(__IO uint32_t *)(found->address) = (((loiTruck->mani_buffer[index] & 0x00FF) << 24) | ((loiTruck->mani_buffer[index] && 0xFF00) << 16));    
       //Serial.print("Address:");
       //Serial.println(found->address, HEX);
       //Serial.print("Vaue:");
@@ -138,5 +138,5 @@ void manipulate_SDO_on_SRAM(My_Function func, int index, LOITRUCK* loiTruck){
 
     // read from SRAM
     //uint32_t read_from_SRAM = *(__IO uint32_t *)(found->address);
-    //Serial.print("new value:"); Serial.println(read_from_SRAM);
+    //Serial.print("new value:"); Serial.println(read_from_SRAM, HEX);
 }

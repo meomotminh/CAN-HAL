@@ -28,8 +28,37 @@ using namespace mbed;
 //UsbDebugCommInterface debugComm(&SerialUSB1);
 //ThreadDebug           threadDebug(&debugComm, DEBUG_BREAK_IN_SETUP);
 
+using namespace rtos;
+
+Thread send_fake_heart_beat;
+
 
 LOITRUCK loiTruck = LOITRUCK(); // only loiTruck on M7
+
+
+void send_fake(){
+  /* ---------------------- Send Fake Heart Beat message ---------------------- */
+    while (true){
+      // send fake heart beat
+      if (!loiTruck.receiveMsg){          
+        //loiTruck.fake_heart_beat = true;
+        
+        if (my_can_write(&loiTruck.my_can, fake[0],0,&loiTruck)){
+
+        } else {
+          //Error_Handler();
+          //Serial.println("Error");
+        } 
+
+        //loiTruck.fake_heart_beat = false;
+        }
+        
+      HAL_Delay(100);
+     }
+
+     
+
+}
 
 /* ------------------------------ RTC CALLBACK ------------------------------ */
 
@@ -245,7 +274,8 @@ void HAL_FDCAN_TimeoutOccurredCallback(FDCAN_HandleTypeDef *hfdcan){
 
 
 void HAL_FDCAN_TimestampWraparoundCallback(FDCAN_HandleTypeDef *hfdcan){
-  loiTruck.timestamp = true;  
+   loiTruck.timestamp = true;           
+          
 }
 
 
@@ -453,6 +483,8 @@ void setup() {
     Serial.println("|           Start loop              |");
     Serial.println("-------------------------------------");
 
+    //send_fake_heart_beat.start(send_fake); // Start an independent thread to send fake heart beat
+    
     /* -------------------------------- Scenario -------------------------------- */
     if (find_Scenario(&loiTruck)){
       Serial.println("M7: Found First Scenario");
@@ -467,12 +499,37 @@ void setup() {
 
 void loop() {
   /* --------------- put your main code here, to run repeatedly: -------------- */
+  // Send fake heart beat
+  /* ---------------------- Send Fake Heart Beat message ---------------------- */
+  if (loiTruck.timestamp){
+
+    
+    //Serial.println("TimeStamp trigger!");
+    loiTruck.fake_heart_beat = true;
+    //Serial.print("Size of fake: "); Serial.println(sizeof(fake));
+    
+    
+    
+    for (int i = 0; i < 24; i++){        
+      
+      if (my_can_write(&loiTruck.my_can, fake[i],0,&loiTruck)){
+
+      } else {
+          //Error_Handler();
+          Serial.println("Error");
+      } 
+
+    }
+    loiTruck.fake_heart_beat = false; 
+    loiTruck.timestamp = false;
+
+  }
+  
+  
 
   /* -------------------------------------------------------------------------- */
   /* ----------------------------- Read and Reply ----------------------------- */
   /* -------------------------------------------------------------------------- */
-  
-  
 
   if (loiTruck.receiveMsg){
 
@@ -481,13 +538,14 @@ void loop() {
     
     
     if (HAL_FDCAN_GetRxMessage(&loiTruck.my_can.CanHandle, FDCAN_RX_FIFO0, &loiTruck.RxHeader, loiTruck.RxData) != HAL_OK){
-        Serial.println("Error Handler");
+        //Serial.println("Error Handler");
         Error_Handler();
       
     } else {      
     
 
     
+    /*
     Serial.println("*****************************");
     Serial.print("R :\t"); Serial.print(loiTruck.RxHeader.Identifier,HEX); Serial.print(" ");
 
@@ -498,8 +556,8 @@ void loop() {
       Serial.print(loiTruck.RxData[i], HEX); 
     }
 
-    Serial.println();  
-        
+    Serial.println(); 
+    */   
       // READ COMMAND
       if ((((loiTruck.RxData[0] & 0xF0) == 0x40) | ((loiTruck.RxData[0] & 0xF0) == 0x60) | loiTruck.segmented)){        
           
@@ -515,7 +573,7 @@ void loop() {
       // WRITE COMMAND                                                            
       } else if ((loiTruck.RxData[0] & 0xF0) == 0x20) {
         
-        Serial.println("Write Command!");
+        //Serial.println("Write Command!");
         write_parameter(&loiTruck);  
 
         loiTruck.TxHeader.Identifier = prepare_ID(loiTruck.RxHeader.Identifier);
@@ -534,6 +592,8 @@ void loop() {
 
   
 
+  
+  /*
   if (loiTruck.Rx_Fifo0_full){
     Serial.println("FIFO full");
     loiTruck.Rx_Fifo0_full = false;
@@ -544,27 +604,8 @@ void loop() {
     //Serial.println("Timeout occur!");
     loiTruck.timeout = false;
   }
-
-  /* ---------------------- Send Fake Heart Beat message ---------------------- */
+  */
   
-  if (loiTruck.timestamp){
-    //Serial.println("TimeStamp trigger!");
-    loiTruck.fake_heart_beat = true;
-    //Serial.print("Size of fake: "); Serial.println(sizeof(fake));
-    for (int i = 0; i < 24; i++){        
-      
-      if (my_can_write(&loiTruck.my_can, fake[i],0,&loiTruck)){
-
-      } else {
-          //Error_Handler();
-          Serial.println("Error");
-      } 
-
-    }
-    loiTruck.fake_heart_beat = false; 
-    loiTruck.timestamp = false;
-
-  }
   
   /* -------------------------------------------------------------------------- */
   /* ---------------------------------- xxxx ---------------------------------- */
@@ -710,7 +751,8 @@ void loop() {
     
   }
   */
-  
+
+   
 
   /* -------------------------------------------------------------------------- */
   /* ---------------------------------- xxxx ---------------------------------- */
