@@ -94,6 +94,7 @@ public:
     }
 };
 
+
 static SDO res_4007_08(55, 0x0, 0x400708, NULL, 0x4, false, 0x01000000);  // uint16 type
 
 static SDO res_4007_02(54, 0x0, 0x400702, &res_4007_08, 0x4, false, 0x01000000);  // uint16 type
