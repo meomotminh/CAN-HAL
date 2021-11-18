@@ -755,3 +755,6 @@
 09:36:07.202 -> S :	5C1  43 20 20 2 2E 74 0 0
 09:36:07.202 -> *****************************
 09:36:07.202 -> R :	740  7F
+
+
+diese woche arbeite ich weiter an mein Bachelorarbeit. ich verbringe die meiste Zeit damit, meinen ersten Absatz zu schreiben. Auf der anderen Seite habe ich die unerwartet lange verzögerung beim umgang mit CAN nachricht. Ich werde es mir ansehen und versuchen, solche verzögerungen zu reduzieren
