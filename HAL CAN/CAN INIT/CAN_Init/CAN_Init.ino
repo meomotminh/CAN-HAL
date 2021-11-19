@@ -9,10 +9,33 @@
 #include "src/TIMER/TIMER.h"
 #include "src/UTILITY/UTILITY.h"
 
+/* ------------------------------- CANOpenNode ------------------------------ */
+#include "src/CANopenNode/CANopen.h"
+#include "config.h"
 
-
+extern "C" {
+#include "src/CANopenNode/301/CO_driver.h"
+}
 
 using namespace mbed;
+using namespace rtos;
+
+/* ------------------------ flag used to stop threads ----------------------- */
+#define STOP_THREADS_FLAG 1
+/* ------------------ interval of tmrTask thread in micros ------------------ */
+static const int RTTHREAD_INTERVAL_1000US = 1000;
+/* ----------------------- variable increments each ms ---------------------- */
+volatile uint16_t CO_timer1ms = 0U;
+/* ------------------- thread object that holds RT thread ------------------- */
+Thread* rtThread;
+/* --------------------- function executed by RT thread --------------------- */
+static void rtTask(void);
+/* ------------- Timer used to measure performance of RT thread ------------- */
+Timer rtPerfTimer;
+
+/* ----------------- Global var and objects for CANopenNode ----------------- */
+CO_t *CO = NULL;
+
 
 
 
@@ -28,7 +51,7 @@ using namespace mbed;
 //UsbDebugCommInterface debugComm(&SerialUSB1);
 //ThreadDebug           threadDebug(&debugComm, DEBUG_BREAK_IN_SETUP);
 
-using namespace rtos;
+
 
 Thread send_fake_heart_beat;
 
@@ -422,6 +445,57 @@ void Error_Handler(void){
   // DO SOMETHING 
 }
 
+/* ------------------------------- CANopenNode ------------------------------ */
+static void rtLoop(void){
+  // Process Sync and read RPDO
+  bool_t syncWas = CO_process_SYNC(CO, RTTHREAD_INTERVAL_1000US);
+  CO_process_RPDO(CO, syncWas);
+
+  // apply RPDO value to DigitalOut(s)
+  // note: userLed is first bit of RPDO-0
+  uint8_t outputmap = OD_writeOutput8Bit[0];
+  
+  uint8_t inputmap = ;
+  OD_readInput8Bit[0] = inputmap;
+
+  // process TPDO
+  CO_process_TPDO(CO, syncWas, RTTHREAD_INTERVAL_1000US);
+
+  CO_Indicators_process(CO->NMT);
+}
+
+static void rtTask(void){
+  rtPerfTimer.start();
+
+  // sleep for 1ms
+  // it schedule this thread inactive which allow the main thread 
+  // to continue execution. It would be better if we sleep more precisely
+
+  while (!ThisThread::flags_wait_any_for(STOP_THREADS_FLAG, RTTHREAD_INTERVAL_1000US/1000)){
+    CO_timer1ms++;
+
+    if (CO->CANmodule[0]->CANnormal){
+      // use Timer to measure RT thread execution time
+      // in case of bad performance, EMCY msg will be created
+      rtPerfTimer.reset();
+      int begin = rtPerfTimer.read_us();
+
+      // perform RT tasks
+      // NOTE: Do not perform any print here
+      rtLoop();
+
+      // calculate time spend executing RT code, send EMCY in case of bad performance
+      int timespan = rtPerfTimer.read_us() - begin;
+      if (timespan > RTTHREAD_INTERVAL_1000US){
+        float tsMillis = static_cast<double>(timespan) / 1000;
+        Serial.println("RT slow");
+        CO_errorReport(CO->em, CO_EM_ISR_TIMER_OVERFLOW, CO_EMC_SOFTWARE_INTERVAL, 0U);
+      }
+    }
+  }
+}
+
+
 void setup() {
   
     // Initialize RPC lib, also boot M4 core
@@ -494,11 +568,155 @@ void setup() {
         Serial.println("M7: Alarm Config error");
       }                    
     }
+
+    /* ------------------------------- CANopenNode ------------------------------ */
+    Serial.println("CANOPEN DEMO");
+    
+    
 }
 
 
 void loop() {
   /* --------------- put your main code here, to run repeatedly: -------------- */
+  /* ------------------------------- CanOpenNode ------------------------------ */
+  CO_ReturnError_t err;
+  CO_NMT_reset_cmd_t reset = CO_RESET_NOT;
+  uint32_t heapMemoryUsed;
+  void *CANptr = NULL;  // CAN module address
+  uint8_t pendingNodeId = 10;
+  uint8_t activeNodeId = 10;
+  uint16_t pendingBitRate = 125;
+
+#if (CO_CONFIG_STORAGE) & CO_CONFIG_STORAGE_ENABLE
+  CO_storage_t storage;
+  CO_storage_entry_t storageEntries[] = {
+    .addr = &OD_PERSIST_COMM,
+    .len = sizeof(OD_PERSIST_COMM),
+    .subIndexOD = 2,
+    .attr = CO_storage_cmd | CO_storage_restore,
+    .addNV = NULL
+  };
+  uint8_t storageEntriesCount = sizeof(storageEntries) / sizeof(storageEntries[0]);
+  uint32_t storageInitError = 0;
+#endif
+  
+
+  // Allocate memory
+  CO_config_t *config_ptr = NULL;
+#ifdef CO_MULTIPLE_OD
+  CO_config_t co_config = {0};
+  OD_INIT_CONFIG(co_config);
+  co_config.CNT_LEDS = 1;
+  co_config.CNT_LSS_SLV = 1;
+  config_ptr = &co_config;
+#endif
+  CO = CO_new(config_ptr, &heapMemoryUsed);
+
+  if (CO == NULL){
+    Serial.println("Error: can't allocate memory");    
+  } else {
+    Serial.println("Allocated for CANopen object");
+  }
+
+#if (CO_CONFIG_STORAGE) & CO_CONFIG_STORAGE_ENABLE
+  err = CO_storageBlank_init(
+    &storage,
+    CO->CANmodule,
+    OD_ENTRY_H1010_storeParameters,
+    OD_ENTRY_H1011_restoreDefaultParameters,
+    storageEntries,
+    storageEntriesCount,
+    &storageInitError
+  );
+
+  if (err != CO_ERROR_NO && err != CO_ERROR_DATA_CORRUPT){
+    Serial.println("Error: Storage ");
+  }
+#endif
+
+  while (reset != CO_RESET_APP)
+  {
+    Serial.println("CANopenNode - Reset communication...");
+
+    // wait rt_thread
+    CO->CANmodule->CANnormal = false;
+
+    // Enter CAN config
+    CO_CANsetConfigurationMode((void *)&CANptr);
+    CO_CANmodule_disable(CO->CANmodule);
+
+    // initialize CANOpen
+    err = CO_CANinit(CO, CANptr, pendingBitRate);
+    if (err != CO_ERROR_NO){
+      Serial.println("Error: CAN initialize failed");
+    }
+
+    CO_LSS_address_t lssAddress = {
+      .identity = {
+        .vendorID = OD_PERSIST_COMM.x1018_identity.vendor_ID,
+        .productCode = OD_PERSIST_COMM.x1018_identity.productCode,
+        .revisionNumber = OD_PERSIST_COMM.x1018_identity.revisionNumber,
+        .serialNumber = OD_PERSIST_COMM.x1018_identity.serialNumber
+      }
+    };
+
+    err = CO_LSSinit(CO, &lssAddress, &pendingNodeId, &pendingBitRate);
+    if (err != CO_ERROR_NO){
+      Serial.println("Error: LSS slave initialization failed");
+    }
+
+    activeNodeId = pendingNodeId;
+    uint32_t errInfo = 0;
+
+    err = CO_CANopenInit(
+      CO, // CANopen object
+      NULL, // alternate NMT
+      OD, // object dictionary
+      OD_STATUS_BITS, // optional OD_statusBits
+      NMT_CONTROL,  // CO_NMT_control_t
+      FIRST_HB_TIME, // firstHBtime_ms
+      SDO_SRV_TIMEOUT_TIME, // SDOserverTimeoutTime_ms
+      SDO_CLI_TIMEOUT_TIME, // SDOclientTimeoutTime_ms
+      SDO_CLI_BLOCK, // SDOclientBlockTransfer
+      activeNodeId,
+      &errInfo
+    );
+
+    if (err != CO_ERROR_NO && err != CO_ERROR_NODE_ID_UNCONFIGURED_LSS){
+      if (err == CO_ERROR_OD_PARAMETERS){
+        Serial.println("Error: Object Dictionary entry");
+      } else {
+        Serial.println("Error: CANopen initialization failed");
+      }
+    }
+
+    err = CO_CANopenInitPDO(CO, CO->em, OD, activeNodeId, &errInfo);
+
+    if (err != CO_ERROR_NO){
+      if (err == CO_ERROR_OD_PARAMETERS){
+        Serial.println("Error: Object Dictionary entry");
+      } else {
+        Serial.println("Error: PDO initialization failed");
+      }
+    }
+
+    // start CAN
+    CO_CANsetNormalMode(CO->CANmodule);
+
+    reset = CO_RESET_NOT;
+
+    while (reset == CO_RESET_NOT){
+      // normal program execution
+      uint32_t timeDifference_us = 500;
+
+      // CANopen process
+      reset = CO_process(CO, false, timeDifference_us, NULL);
+      
+    }
+  }
+  
+  
+  
   // Send fake heart beat
   /* ---------------------- Send Fake Heart Beat message ---------------------- */
   if (loiTruck.timestamp){
