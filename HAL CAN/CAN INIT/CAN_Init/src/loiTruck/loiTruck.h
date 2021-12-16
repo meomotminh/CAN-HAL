@@ -243,6 +243,7 @@ public:
 /* -------------------------------- FOR TIMER ------------------------------- */
     TIM_HandleTypeDef htimer6;
     bool timer6 = false;
+    uint32_t passed_time_us = 0;
 
 /* ------------------------------- FOR TESTING ------------------------------ */
     bool Rx_Fifo0_full = false;

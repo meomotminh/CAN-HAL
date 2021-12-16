@@ -5,7 +5,11 @@
 #include "../loiTruck/loiTruck.h"
 
 
+bool DWT_timer_start();
+bool DWT_timer_stop();
 
+bool TIM6_timer_start();
+bool TIM6_timer_stop();
 
 
 
