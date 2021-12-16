@@ -9,10 +9,90 @@
 #include "src/TIMER/TIMER.h"
 #include "src/UTILITY/UTILITY.h"
 
+/* ------------------------------- CANOpenNode ------------------------------ */
+//#include "src/CANopenNode/CANopen.h"
+//#include "config.h"
 
-
+extern "C" {
+//#include "src/CANopenNode/301/CO_driver.h"
+}
 
 using namespace mbed;
+using namespace rtos;
+using namespace std::chrono;
+
+
+// TEMP------------------------
+boolean sendMsg = false;
+boolean receiveMsg = false;
+boolean timeStamp = false;
+boolean timestampVal = 0;
+boolean timerElapse = false;
+
+uint16_t time_array;
+int timeDiff = 0;
+char buffer[40];
+
+uint32_t m_nStart;  // DEBUG stopwatch start cycle counter value
+uint32_t m_nStop;   // DEBUG stopwatch stop cycle counter value
+
+#define DEMCR_TRCENA  0x01000000
+
+// Core debug register
+#define DEMCR           (*((volatile uint32_t *)0xE000EDFC))
+#define DWT_CTRL        (*(volatile uint32_t *)0xe0001000)
+#define CYCCNTENA       (1<<0)
+#define DWT_CYCCNT      ((volatile uint32_t *)0xE0001004)
+#define CPU_CYCLES      *DWT_CYCCNT
+#define CLK_SPEED       400000000 
+
+#define STOPWATCH_START { m_nStart = *((volatile unsigned int *)0xE0001004);}
+#define STOPWATCH_STOP  { m_nStop = *((volatile unsigned int *)0xE0001004);}
+
+Timer t1;
+boolean timerStop = false;
+
+/* ------------------------------- CYCLE COUNT ------------------------------ */
+static inline void stopwatch_reset(void)
+{
+    /* Enable DWT */
+    DEMCR |= DEMCR_TRCENA; 
+    *DWT_CYCCNT = 0;             
+    /* Enable CPU cycle counter */
+    DWT_CTRL |= CYCCNTENA;
+}
+
+static inline uint32_t stopwatch_getticks()
+{
+    return CPU_CYCLES;
+}
+
+static inline void stopwatch_delay(uint32_t ticks)
+{
+    uint32_t end_ticks = ticks + stopwatch_getticks();
+    while(1)
+    {
+            if (stopwatch_getticks() >= end_ticks)
+                    break;
+    }
+}
+
+uint32_t CalcNanosecondsFromStopwatch(uint32_t nStart, uint32_t nStop)
+{
+    uint32_t nDiffTicks;
+    uint32_t nSystemCoreTicksPerMicrosec;
+
+    // Convert (clk speed per sec) to (clk speed per microsec)
+    nSystemCoreTicksPerMicrosec = CLK_SPEED / 1000000;
+
+    // Elapsed ticks
+    nDiffTicks = nStop - nStart;
+
+    // Elapsed nanosec = 1000 * (ticks-elapsed / clock-ticks in a microsec)
+    return 1000 * nDiffTicks / nSystemCoreTicksPerMicrosec;
+} 
+
+
 
 
 
@@ -28,7 +108,7 @@ using namespace mbed;
 //UsbDebugCommInterface debugComm(&SerialUSB1);
 //ThreadDebug           threadDebug(&debugComm, DEBUG_BREAK_IN_SETUP);
 
-using namespace rtos;
+
 
 Thread send_fake_heart_beat;
 
@@ -234,7 +314,12 @@ void FDCAN1_IT0_IRQHandler(void){
 void HAL_FDCAN_TxBufferCompleteCallback(FDCAN_HandleTypeDef *hfdcan, uint32_t BufferIndexes){
   loiTruck.sendMsg = true;
   
-
+  // Start timer after send msg
+  t1.reset();
+  t1.start();
+  
+  stopwatch_reset();
+  STOPWATCH_START;
   //sendMsg = false;  
 }
 
@@ -263,7 +348,13 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
   //if ((RxFifo0ITs & FDCAN_IT_RX_FIFO0_NEW_MESSAGE) != RESET){
 
     loiTruck.receiveMsg = true;
+
+    // stop timer when receive msg
+    t1.stop();
+    timerStop = true;
     
+    STOPWATCH_STOP;
+    timerElapse = true;
     // DO SOMETHING
   //}
 }
@@ -275,6 +366,8 @@ void HAL_FDCAN_TimeoutOccurredCallback(FDCAN_HandleTypeDef *hfdcan){
 
 void HAL_FDCAN_TimestampWraparoundCallback(FDCAN_HandleTypeDef *hfdcan){
    loiTruck.timestamp = true;           
+
+   
           
 }
 
@@ -360,6 +453,9 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
   if (loiTruck.alarm){
     loiTruck.timer6 = true;
   } 
+
+  STOPWATCH_STOP;
+  timerElapse = true;
   
 }
 
@@ -422,6 +518,10 @@ void Error_Handler(void){
   // DO SOMETHING 
 }
 
+/* ------------------------------- CANopenNode ------------------------------ */
+
+
+
 void setup() {
   
     // Initialize RPC lib, also boot M4 core
@@ -455,7 +555,7 @@ void setup() {
     Set_CAN_Pin(&loiTruck.my_can, PB_8, PH_13, 250000);  
 
     /* ----------------------- Set external Loop Back mode ---------------------- */
-    my_can_mode(&loiTruck.my_can, MODE_NORMAL);
+    my_can_mode(&loiTruck.my_can, MODE_TEST_SILENT);
 
     /* -------------------------- set filter and start -------------------------- */
     //int my_can_filter(can_t *obj, uint32_t id, uint32_t mask, CANFormat format, int32_t handle)
@@ -494,11 +594,39 @@ void setup() {
         Serial.println("M7: Alarm Config error");
       }                    
     }
+
+    /* ------------------------------- CANopenNode ------------------------------ */
+    //Serial.println("CANOPEN DEMO");
+
+
+    //TIMER6_Init(&loiTruck);
+   
 }
 
 
 void loop() {
   /* --------------- put your main code here, to run repeatedly: -------------- */
+
+  timeDiff = 0;
+
+
+  
+  if (timerElapse){
+    timeDiff = CalcNanosecondsFromStopwatch(m_nStart, m_nStop);
+    sprintf(buffer,"Delay measured is %d nanoseconds\n", timeDiff);
+    Serial.print(buffer);
+    TIM6->CNT = 0;
+    stopwatch_reset();
+    STOPWATCH_START;
+    timerElapse = false;
+  }
+
+  if (timerStop){
+    sprintf(buffer,"Delay measured is %d milliseconds\n", duration_cast<milliseconds>(t1.elapsed_time()).count());
+    Serial.print(buffer);
+    timerStop = false;
+  }
+  
   // Send fake heart beat
   /* ---------------------- Send Fake Heart Beat message ---------------------- */
   if (loiTruck.timestamp){
