@@ -33,7 +33,7 @@ void Set_Freq(can_t *obj, const can_pinmap_t *pinmap, int hz)
         return;
     }
 
-    //Serial.println("Before Set Frequency!\n");
+    ////Serial.println("Before Set Frequency!\n");
     
     // Set Frequency
     RCC_PeriphCLKInitTypeDef RCC_PeriphClkInit;
@@ -41,7 +41,7 @@ void Set_Freq(can_t *obj, const can_pinmap_t *pinmap, int hz)
         RCC_PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_FDCAN1;
         RCC_PeriphClkInit.Fdcan1ClockSelection = RCC_FDCAN1CLKSOURCE_PLL1;
     #else 
-        //Serial.println("Enter here!");
+        ////Serial.println("Enter here!");
         RCC_PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_FDCAN;
         RCC_PeriphClkInit.FdcanClockSelection = RCC_FDCANCLKSOURCE_PLL;
     #endif
@@ -53,9 +53,9 @@ void Set_Freq(can_t *obj, const can_pinmap_t *pinmap, int hz)
     }
    #endif /* DUAL_CORE */
     if (HAL_RCCEx_PeriphCLKConfig(&RCC_PeriphClkInit) != HAL_OK) {
-        //Serial.println("HAL_RCCEx_PeriphCLKConfig error\n");
+        ////Serial.println("HAL_RCCEx_PeriphCLKConfig error\n");
     } else {
-        //Serial.println("HAL_RCCEx_PeriphCLKConfig OK!");
+        ////Serial.println("HAL_RCCEx_PeriphCLKConfig OK!");
     }
     #if defined(DUAL_CORE) && (TARGET_STM32H7)
     LL_HSEM_ReleaseLock(HSEM, CFG_HW_RCC_SEMID, HSEM_CR_COREID_CURRENT);
@@ -74,28 +74,28 @@ void Set_Freq(can_t *obj, const can_pinmap_t *pinmap, int hz)
 
     // Default Values
     obj->CanHandle.Instance = (FDCAN_GlobalTypeDef *)pinmap->peripheral;
-      //Serial.println(obj);
-      //Serial.print("Instance:"); Serial.println(pinmap->peripheral);
+      ////Serial.println(obj);
+      ////Serial.print("Instance:"); //Serial.println(pinmap->peripheral);
       
     
 
     #if (defined TARGET_STM32H7)
         PLL1_ClocksTypeDef pll1_clocks;
         HAL_RCCEx_GetPLL1ClockFreq(&pll1_clocks);
-        //Serial.print("Hier Freq:"); Serial.println(pll1_clocks.PLL1_Q_Frequency);
+        ////Serial.print("Hier Freq:"); //Serial.println(pll1_clocks.PLL1_Q_Frequency);
         int ntq = pll1_clocks.PLL1_Q_Frequency / hz;  // 320
 
     #else
     #if (defined RCC_PERIPHCLK_FDCAN1)
-        //Serial.println("Hier 2");  
+        ////Serial.println("Hier 2");  
         int ntq = HAL_RCCEx_GetPeriphCLKFreq(RCC_PERIPHCLK_FDCAN1) / hz;
     #else
-        //Serial.println("Hier 2");  
+        ////Serial.println("Hier 2");  
         int ntq = HALL_RCCEx_GetPeriphCLKFreq(RCC_PERIPHCLK_FDCAN) / hz;
     #endif
     #endif
 
-    //Serial.print("ntq:");  Serial.println(ntq);
+    ////Serial.print("ntq:");  //Serial.println(ntq);
 
     
 
@@ -103,7 +103,7 @@ void Set_Freq(can_t *obj, const can_pinmap_t *pinmap, int hz)
 while (!IS_FDCAN_NOMINAL_TSEG1(ntq / nominalPrescaler)){ // > 1 && < 256
   nominalPrescaler++;   // = 2
   if (!IS_FDCAN_NOMINAL_PRESCALER(nominalPrescaler)){
-    //Serial.println("Could not determine nominalPrescaler. Bad clock value\n");
+    ////Serial.println("Could not determine nominalPrescaler. Bad clock value\n");
   }
 }
   
@@ -146,11 +146,11 @@ while (!IS_FDCAN_NOMINAL_TSEG1(ntq / nominalPrescaler)){ // > 1 && < 256
   obj->CanHandle.Init.TxFifoQueueMode = FDCAN_TX_FIFO_OPERATION;
   obj->CanHandle.Init.TxElmtSize = FDCAN_DATA_BYTES_8;
 
-  //Serial.print("Nominal Prescaler:"); Serial.println(nominalPrescaler);
-  //Serial.print("ntq:"); Serial.println(ntq);
-  //Serial.print("Nominal TimeSeg1:"); Serial.println(obj->CanHandle.Init.NominalTimeSeg1);
-  //Serial.print("Nominal TimeSeg2:"); Serial.println(obj->CanHandle.Init.NominalTimeSeg2);
-  //Serial.print("SyncJumpWidth:"); Serial.println(obj->CanHandle.Init.NominalSyncJumpWidth);
+  ////Serial.print("Nominal Prescaler:"); //Serial.println(nominalPrescaler);
+  ////Serial.print("ntq:"); //Serial.println(ntq);
+  ////Serial.print("Nominal TimeSeg1:"); //Serial.println(obj->CanHandle.Init.NominalTimeSeg1);
+  ////Serial.print("Nominal TimeSeg2:"); //Serial.println(obj->CanHandle.Init.NominalTimeSeg2);
+  ////Serial.print("SyncJumpWidth:"); //Serial.println(obj->CanHandle.Init.NominalSyncJumpWidth);
 
   //Trd_internal_init(obj);
 }
@@ -172,9 +172,9 @@ void Set_CAN_Pin(can_t *obj, PinName rd, PinName td, int hz){
 void Trd_internal_init(can_t *obj){
   // call HAL init function
   if (HAL_FDCAN_Init(&obj->CanHandle) != HAL_OK){
-    Serial.println("HAL_FDCAN_Init error\n");
+    //Serial.println("HAL_FDCAN_Init error\n");
   } else {
-    Serial.println("HAL_FDCAN_Init success!");
+    //Serial.println("HAL_FDCAN_Init success!");
   }
 
 
@@ -183,15 +183,15 @@ void Trd_internal_init(can_t *obj){
    * **/
   
   if (HAL_FDCAN_ConfigTimestampCounter(&obj->CanHandle, FDCAN_TIMESTAMP_PRESC_2) != HAL_OK){
-    Serial.println("HAL_FDCAN_ConfigTimestampCounter error");
+    //Serial.println("HAL_FDCAN_ConfigTimestampCounter error");
   } else {
-    Serial.println("HAL_FDCAN_ConfigTimestampCounter OK");
+    //Serial.println("HAL_FDCAN_ConfigTimestampCounter OK");
   }
 
   if (HAL_FDCAN_EnableTimestampCounter(&obj->CanHandle, FDCAN_TIMESTAMP_INTERNAL) != HAL_OK){
-    Serial.println("HAL_FDCAN_EnableTimestampCounter error");
+    //Serial.println("HAL_FDCAN_EnableTimestampCounter error");
   } else {
-    Serial.println("HAL_FDCAN_EnableTimestampCounter OK");
+    //Serial.println("HAL_FDCAN_EnableTimestampCounter OK");
   }
   
 
@@ -219,9 +219,9 @@ void Trd_internal_init(can_t *obj){
 
   /*
   if (HAL_FDCAN_TT_ConfigOperation(&obj->CanHandle, &TT_Config) != HAL_OK){
-    Serial.println("HAL_FDCAN_TT_ConfigOperation error");
+    //Serial.println("HAL_FDCAN_TT_ConfigOperation error");
   } else {
-    Serial.println("HAL_FDCAN_TT_ConfigOperation OK");
+    //Serial.println("HAL_FDCAN_TT_ConfigOperation OK");
   }*/
 
   /**
@@ -229,9 +229,9 @@ void Trd_internal_init(can_t *obj){
    * **/
   /*
   if (HAL_FDCAN_TT_ConfigReferenceMessage(&obj->CanHandle, FDCAN_STANDARD_ID, 0x641, FDCAN_TT_REF_MESSAGE_NO_PAYLOAD) != HAL_OK){
-    Serial.println("HAL_FDCAN_TT_ConfigReferenceMessage error");
+    //Serial.println("HAL_FDCAN_TT_ConfigReferenceMessage error");
   } else {
-    Serial.println("HAL_FDCAN_TT_ConfigReferenceMessage OK");
+    //Serial.println("HAL_FDCAN_TT_ConfigReferenceMessage OK");
   }*/
 
   /**
@@ -251,9 +251,9 @@ void Trd_internal_init(can_t *obj){
   //sTriggerConfig.FilterIndex = 
   
   if (HAL_FDCAN_TT_ConfigTrigger(&obj->CanHandle, &sTriggerConfig) != HAL_OK){
-    Serial.println("HAL_FDCAN_TT_ConfigTrigger error");
+    //Serial.println("HAL_FDCAN_TT_ConfigTrigger error");
   } else {
-    Serial.println("HAL_FDCAN_TT_ConfigTrigger OK");
+    //Serial.println("HAL_FDCAN_TT_ConfigTrigger OK");
   }*/
 
 
@@ -261,17 +261,17 @@ void Trd_internal_init(can_t *obj){
    * Config Timestamp counter
   ***/
   if (HAL_FDCAN_ConfigTimestampCounter(&obj->CanHandle, FDCAN_TIMESTAMP_PRESC_2) != HAL_OK){
-    Serial.println("HAL_FDCAN_ConfigTimestampCounter error!");
+    //Serial.println("HAL_FDCAN_ConfigTimestampCounter error!");
   } else {
-    Serial.println("HAL_FDCAN_ConfigTimestampCounter OK!");
+    //Serial.println("HAL_FDCAN_ConfigTimestampCounter OK!");
   }
   /***
    * Enable Timestamp counter
   ***/
   if (HAL_FDCAN_EnableTimestampCounter(&obj->CanHandle, FDCAN_TIMESTAMP_INTERNAL) != HAL_OK){
-    Serial.println("HAL_FDCAN_EnableTimestampCounter error!");
+    //Serial.println("HAL_FDCAN_EnableTimestampCounter error!");
   } else {
-    Serial.println("HAL_FDCAN_EnableTimestampCounter OK!");
+    //Serial.println("HAL_FDCAN_EnableTimestampCounter OK!");
   }
   
   
@@ -280,18 +280,18 @@ void Trd_internal_init(can_t *obj){
   * Config Timeout Counter
   **/
   if (HAL_FDCAN_ConfigTimeoutCounter(&obj->CanHandle, FDCAN_TIMEOUT_CONTINUOUS, 0xFFFF) != HAL_OK){
-    Serial.println("HAL_FDCAN_ConfigTimeoutCounter error!");
+    //Serial.println("HAL_FDCAN_ConfigTimeoutCounter error!");
   } else {
-    Serial.println("HAL_FDCAN_ConfigTimeoutCounter OK!");
+    //Serial.println("HAL_FDCAN_ConfigTimeoutCounter OK!");
   }
 
   /**
   * Enable Timeout Counter
   **/
   if (HAL_FDCAN_EnableTimeoutCounter(&obj->CanHandle) != HAL_OK){
-    Serial.println("HAL_FDCAN_EnableTimeoutCounter error!");
+    //Serial.println("HAL_FDCAN_EnableTimeoutCounter error!");
   } else {
-    Serial.println("HAL_FDCAN_EnableTimeoutCounter OK!");
+    //Serial.println("HAL_FDCAN_EnableTimeoutCounter OK!");
   }  
 
 }
@@ -309,13 +309,13 @@ int my_can_write(can_t *obj, CANMessage msg, int cc, LOITRUCK* loiTruck){
   // Configure Tx buffer message
   
   loiTruck->TxHeader.Identifier = msg.id;
-  //Serial.print("Message ID:"); Serial.println(loiTruck->TxHeader.Identifier, HEX);
+  ////Serial.print("Message ID:"); //Serial.println(loiTruck->TxHeader.Identifier, HEX);
   
   loiTruck->TxHeader.IdType = FDCAN_STANDARD_ID;
   loiTruck->TxHeader.TxFrameType = FDCAN_DATA_FRAME;
   loiTruck->TxHeader.DataLength = msg.len << 16;
 
-  //Serial.print("Data length:"); Serial.println(loiTruck->TxHeader.DataLength, HEX);
+  ////Serial.print("Data length:"); //Serial.println(loiTruck->TxHeader.DataLength, HEX);
   
   
   loiTruck->TxHeader.ErrorStateIndicator = FDCAN_ESI_ACTIVE;
@@ -327,7 +327,7 @@ int my_can_write(can_t *obj, CANMessage msg, int cc, LOITRUCK* loiTruck){
   for (int i = 0; i<msg.len; i++){
     loiTruck->msg.data[i] = msg.data[i];    // For print out later
     loiTruck->TxData[i] = msg.data[i];
-    //Serial.println(loiTruck->TxData[i]);
+    ////Serial.println(loiTruck->TxData[i]);
   }
 
 
@@ -341,22 +341,22 @@ int my_can_write(can_t *obj, CANMessage msg, int cc, LOITRUCK* loiTruck){
     
 
     if (HAL_FDCAN_AddMessageToTxFifoQ(&(loiTruck->my_can.CanHandle), &loiTruck->TxHeader, msg.data) != HAL_OK){
-      Serial.println("Hier error addMessageToTx");
+      //Serial.println("Hier error addMessageToTx");
       return 0;
     } else {
-      //Serial.println("Send success!");
+      ////Serial.println("Send success!");
     }
     
     if (!loiTruck->fake_heart_beat){
-      Serial.print("S :\t"); Serial.print(loiTruck->TxHeader.Identifier,HEX); Serial.print(" ");
+      //Serial.print("S :\t"); //Serial.print(loiTruck->TxHeader.Identifier,HEX); //Serial.print(" ");
 
         
       for (uint8_t i = 0; i < (msg.len); i++){
-        Serial.print(" ");
-        Serial.print(loiTruck->msg.data[i], HEX); 
+        //Serial.print(" ");
+        //Serial.print(loiTruck->msg.data[i], HEX); 
       }
 
-      Serial.println();   
+      //Serial.println();   
     }
   }
 
@@ -380,7 +380,7 @@ int my_can_read(can_t *obj, CAN_Message *msg, int handle,LOITRUCK* loiTruck)
 
   FDCAN_RxHeaderTypeDef RxHeader = {0};
   if (HAL_FDCAN_GetRxMessage(&obj->CanHandle, FDCAN_RX_FIFO0, &loiTruck->RxHeader, msg->data) != HAL_OK){
-    //Serial.println("HAL_FDCAN_GetRxMessage error");
+    ////Serial.println("HAL_FDCAN_GetRxMessage error");
     return 0;
   }
   
@@ -440,8 +440,8 @@ int my_can_mode(can_t *obj, CanMode mode)
   HAL_StatusTypeDef temp = HAL_FDCAN_Stop(&obj->CanHandle);
 
   if ( temp != HAL_OK){
-    Serial.print("HAL_FDCAN_Stop:\t");
-    Serial.println(temp);
+    //Serial.print("HAL_FDCAN_Stop:\t");
+    //Serial.println(temp);
   }
 
   switch (mode){
