@@ -32,7 +32,7 @@ static uint32_t BufferCmp32b(uint32_t* pBuffer1, uint32_t* pBuffer2, uint16_t Bu
 /* ------------ check if it is in concerning range 0x601 -> 0x67F ----------- */
 bool check_COB_ID_range(uint32_t COB_ID)
 {    
-    //Serial.println(TxHeader.Identifier, HEX);
+    ////Serial.println(TxHeader.Identifier, HEX);
     if ((COB_ID) >= 0x601 && (COB_ID <= 0x67F))
     {
         return true;
@@ -99,7 +99,7 @@ uint8_t write_parameter(LOITRUCK* loiTruck){
 
   if ( found != NULL){
     // save into SRAM
-    Serial.println("Write to SRAM");
+    //Serial.println("Write to SRAM");
     *(__IO uint32_t *)(found->address) = value;
     loiTruck->TxData[0] = prepare_Command_ID(false, loiTruck);
     loiTruck->TxData[1] = loiTruck->RxData[1];
@@ -125,7 +125,7 @@ uint8_t write_parameter(LOITRUCK* loiTruck){
     
       // Save into SRAM
       *(__IO uint32_t *)(temp.address) = value;
-      Serial.println("Write to SRAM");
+      //Serial.println("Write to SRAM");
     }
     
 
@@ -154,13 +154,13 @@ uint8_t read_parameter(LOITRUCK* loiTruck){
   struct SDO* found = find_value(&loiTruck->my_SDO_List, tmp);
   uint8_t reply = 0;
   
-  //Serial.print("Value to find:");
-  //Serial.println(tmp, HEX);
+  ////Serial.print("Value to find:");
+  ////Serial.println(tmp, HEX);
   
-  //Serial.println(found->value, HEX);
+  ////Serial.println(found->value, HEX);
   if (check_COB_ID_range(loiTruck->RxHeader.Identifier)){
     reply = 1;
-    //Serial.println("In Range");
+    ////Serial.println("In Range");
     if (found == NULL){
     loiTruck->TxData[0] = prepare_Command_ID(false, loiTruck);
     loiTruck->TxData[1] = loiTruck->RxData[1];
@@ -174,7 +174,7 @@ uint8_t read_parameter(LOITRUCK* loiTruck){
 
     
   } else {
-    //Serial.println("Hier"); 
+    ////Serial.println("Hier"); 
     // if loiTruck->segmented or not
     if (found->segmented){
       // first message
@@ -210,8 +210,8 @@ uint8_t read_parameter(LOITRUCK* loiTruck){
         // 3(rest) + 4
         // 4(rest) + 3
 
-        Serial.println(read_from_SRAM_1st, HEX);
-        Serial.println(read_from_SRAM_2nd, HEX);
+        //Serial.println(read_from_SRAM_1st, HEX);
+        //Serial.println(read_from_SRAM_2nd, HEX);
 
         switch (loiTruck->rest_count)
         {
@@ -271,7 +271,7 @@ uint8_t read_parameter(LOITRUCK* loiTruck){
         
 
         
-        //Serial.println("*****SEGMENT****");
+        ////Serial.println("*****SEGMENT****");
 
         loiTruck->segment_count++;       
       // terminate message
@@ -285,7 +285,7 @@ uint8_t read_parameter(LOITRUCK* loiTruck){
         loiTruck->TxData[6] = 0x00;
         loiTruck->TxData[7] = 0x00; 
 
-        //Serial.println("*****FINAL SEGMENT****");
+        ////Serial.println("*****FINAL SEGMENT****");
         loiTruck->segmented = false;        
         loiTruck->segment_count = 0;
         loiTruck->add_count = 0;
@@ -317,7 +317,7 @@ uint8_t read_parameter(LOITRUCK* loiTruck){
 
     // print out 0x400001 message
     if ((loiTruck->RxData[2] == 0x40) && (loiTruck->RxData[1] == 0x00) && (loiTruck->RxData[3] == 0x01)){
-      Serial.println("-----------TRUCKSCOPE SAMPLE 0x400001-------------");
+      //Serial.println("-----------TRUCKSCOPE SAMPLE 0x400001-------------");
     }
     
   }
@@ -325,7 +325,7 @@ uint8_t read_parameter(LOITRUCK* loiTruck){
   
   
 
-  //Serial.println("Hier");
+  ////Serial.println("Hier");
   loiTruck->found_parameter = true;
   return reply;
 
@@ -394,18 +394,18 @@ void append_Linked_List(struct SDO** head_ref, struct SDO* temp_node){
 }
 
 void display_Linked_List(LOITRUCK* loiTruck){
-  Serial.println("Called");
-  Serial.println(loiTruck->my_SDO_List == NULL);
+  //Serial.println("Called");
+  //Serial.println(loiTruck->my_SDO_List == NULL);
   struct SDO *tmp;
   if (loiTruck->my_SDO_List == NULL){
     return;
   } else {    
     tmp = loiTruck->my_SDO_List;
     while (tmp != NULL){
-      Serial.println("****************");
-      Serial.print("SDO index:"); Serial.println(tmp->index);
-      Serial.print("SDO address:"); Serial.println(tmp->address, HEX);
-      Serial.print("SDO value:"); Serial.println(tmp->value, HEX);
+      //Serial.println("****************");
+      //Serial.print("SDO index:"); //Serial.println(tmp->index);
+      //Serial.print("SDO address:"); //Serial.println(tmp->address, HEX);
+      //Serial.print("SDO value:"); //Serial.println(tmp->value, HEX);
 
       tmp = tmp->next;
     }
@@ -436,7 +436,7 @@ bool find_Scenario(LOITRUCK* loiTruck){
         result = true;
       }
       else {
-        //Serial.println("Cannot find Scenario_1 object!");
+        ////Serial.println("Cannot find Scenario_1 object!");
         result = false;
       }
 
@@ -471,15 +471,15 @@ bool setup_Scenario(LOITRUCK* loiTruck){
 
 
 void print_CANMessage(CANMessage msg){
-  Serial.print(msg.id, HEX);
-  Serial.print("\t");
+  //Serial.print(msg.id, HEX);
+  //Serial.print("\t");
   
   for (uint8_t i = 0; i<msg.len; i++){    
-    Serial.print(msg.data[i], HEX);
-    Serial.print("\t");
+    //Serial.print(msg.data[i], HEX);
+    //Serial.print("\t");
   }
 
-  Serial.println();
+  //Serial.println();
   
 }
 
@@ -493,7 +493,7 @@ String currentCPU(void){
 }
 
 uint8_t convert_Scenario_To_Code(Scenario* sce){
-  //Serial.print("Convert:"); Serial.println(sce->_output_type + 1);
+  ////Serial.print("Convert:"); //Serial.println(sce->_output_type + 1);
   return sce->_output_type + 1;    // index start at 0
 }
 

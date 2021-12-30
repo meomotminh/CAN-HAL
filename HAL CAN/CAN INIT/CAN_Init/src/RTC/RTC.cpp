@@ -15,9 +15,9 @@ void RTC_Init(LOITRUCK* loiTruck){
     loiTruck->hrtc.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
 
     if (HAL_RTC_Init(&loiTruck->hrtc) != HAL_OK){
-      Serial.println("HAL_RTC_Init error!");
+      //Serial.println("HAL_RTC_Init error!");
     } else {
-      Serial.println("HAL_RTC_Init OK!");
+      //Serial.println("HAL_RTC_Init OK!");
     }
 }
 
