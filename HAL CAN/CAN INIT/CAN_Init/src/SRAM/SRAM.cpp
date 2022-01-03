@@ -31,47 +31,24 @@ struct SDO* temp;
 
 #ifdef Truck_ID
   
-  
   String truck_id_temp = String(Truck_ID);
 
   //Serial.print("Truck ID:");  //Serial.println(truck_id_temp);
   // create object SDO Truck_ID of length 0x20 = 32 and segmented = true
+  
+  while (truck_id_temp.length() < 32){
+    truck_id_temp += " ";
+  }
+
   struct SDO last_SDO = *(get_last_SDO(&loiTruck->my_SDO_List));
   int temp_index = last_SDO.index + 1;
-  struct SDO temp_ident_SDO = SDO(temp_index,SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*temp_index),0x200204,NULL,0x20,true,0x0);  
+  
+  struct SDO temp_ident_SDO = SDO(temp_index,0,0x200204,NULL,0x20,true,0);  
+  temp_ident_SDO.set_segmented_string(truck_id_temp);
+  last_SDO.next = &temp_ident_SDO;
+  //Serial.println(temp_ident_SDO.segmented_string);
+
   append_Linked_List(&loiTruck->my_SDO_List, &temp_ident_SDO);
-
-
-  for (uint8_t i = 0; i < ceil(truck_id_temp.length() / 4.0); i++){
-    String temp_char = "";
-
-    if ((i*4) <= (truck_id_temp.length() - 4)){
-      temp_char = truck_id_temp.substring(i*4,i*4+4);  // get 4 letters
-    } else {
-      temp_char = truck_id_temp.substring(i*4);  // get till end
-      // less than 4 char then make it 4 by prepend " "
-      while (temp_char.length() < 4){
-        temp_char += " ";
-      }
-    }    
-    
-    //Serial.print(i);//Serial.print(":");
-    //Serial.println(temp_char);
-    
-    byte buf[temp_char.length() + 1];
-    temp_char.getBytes(buf, temp_char.length() + 1);    
-    uint32_t to_save = (buf[0] << 24) + (buf[1] << 16) + (buf[2] << 8) + buf[3];
-    //Serial.println(to_save, HEX);
-    *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*(temp_index + i))) = to_save;
-  }
-  
-  // need to pad 3 words of 0
-  uint8_t word_cnt = ceil(truck_id_temp.length() / 4.0);
-  *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*(temp_index + word_cnt))) = Truck_null_word;
-  *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*(temp_index + word_cnt + 1))) = Truck_null_word;
-  *(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*(temp_index + word_cnt + 2))) = Truck_null_word;
-    
-  
   
 #endif
 

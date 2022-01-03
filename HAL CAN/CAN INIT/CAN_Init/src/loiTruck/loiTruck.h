@@ -1,5 +1,4 @@
 
-#pragma once
 #ifndef LOITRUCK_H
 #define LOITRUCK_H
 
@@ -52,6 +51,61 @@ static CANMessage fake[24] = {
                     CANMessage(0x703,temp5,1)
 };
 
+
+// define test_SDO
+const  uint8_t test0[] = {0x40,0x02,0x20,0x4,0x0,0x0,0x0,0x0};
+const  uint8_t test1[] = {0x60,0x02,0x20,0x4,0x0,0x0,0x0,0x0};
+const  uint8_t test2[] = {0x70,0x02,0x20,0x4,0x0,0x0,0x0,0x0};
+const  uint8_t test3[] = {0x40,0x04,0x24,0x02,0x0,0x0,0x0,0x0};
+const  uint8_t test4[] = {0x2B,0x42,0x53,0x01,0x04,0x04,0x0,0x0};
+const  uint8_t test5[] = {0x40,0x01,0x24,0x02,0x0,0x00,0x0,0x0};
+const  uint8_t test6[] = {0x2F,0x42,0x53,0x02,0x02,0x00,0x0,0x0};
+const  uint8_t test7[] = {0x2b,0x42,0x53,0x03,0x89,0x29,0x00,0x00};
+const  uint8_t test8[] = {0x40,0x03,0x24,0x02,0x00,0x00,0x00,0x00};
+static CANMessage test_SDO[12] = {
+                    CANMessage(0x601,test0,8),//1
+                    CANMessage(0x601,test1,8),//2
+                    CANMessage(0x601,test2,8),//3
+                    CANMessage(0x601,test1,8),//4                    
+                    CANMessage(0x601,test2,8),//5                    
+                    CANMessage(0x601,test1,8),//6
+                    CANMessage(0x641,test3,8),//7
+                    CANMessage(0x603,test4,8),//8
+                    CANMessage(0x641,test5,8),//9
+                    CANMessage(0x603,test6,8),//10
+                    CANMessage(0x603,test7,8),//11
+                    CANMessage(0x641,test8,8),//12                    
+};
+
+// define expect_SDO
+const  uint8_t expect0[] = {0x41,0x02,0x20,0x4,0x20,0x0,0x0,0x0};
+const  uint8_t expect1[] = {0x0,0x45,0x43,0x45,0x32,0x32,0x35,0x20};
+const  uint8_t expect2[] = {0x10,0x20,0x20,0x20,0x20,0x20,0x20,0x20};
+const  uint8_t expect3[] = {0x0,0x32,0x30,0x31,0x35,0x0,0x0,0x0};
+const  uint8_t expect4[] = {0x10,0x00,0x0,0x0,0x0,0x0,0x0,0x0};
+const  uint8_t expect5[] = {0x7,0x0,0x0,0x0,0x0,0x00,0x0,0x0};
+const  uint8_t expect6[] = {0x4B,0x04,0x24,0x02,0x09,0x10,0x0,0x0};
+const  uint8_t expect7[] = {0x60,0x42,0x53,0x01,0x00,0x00,0x0,0x0};
+const  uint8_t expect8[] = {0x4,0x1,0x24,0x2,0x89,0x29,0x0,0x0};
+const  uint8_t expect9[] = {0x4,0x1,0x24,0x2,0x89,0x29,0x0,0x0};
+const  uint8_t expect10[] = {0x60,0x42,0x53,0x1,0x0,0x0,0x0,0x0};
+const  uint8_t expect11[] = {0x40,0x3,0x24,0x2,0xB7,0xF7,0x0,0x0};
+
+static CANMessage expect_SDO[12] = {
+                    CANMessage(0x581,expect0,8),//1
+                    CANMessage(0x581,expect1,8),//2
+                    CANMessage(0x581,expect2,8),//3
+                    CANMessage(0x581,expect3,8),//4                 
+                    CANMessage(0x581,expect4,8),//5                    
+                    CANMessage(0x581,expect5,8),//6
+                    CANMessage(0x5C1,expect6,8),//7
+                    CANMessage(0x583,expect7,8),//8    
+                    CANMessage(0x5C1,expect8,8),//9               
+                    CANMessage(0x583,expect9,8),//10               
+                    CANMessage(0x583,expect10,8),//11               
+                    CANMessage(0x5C1,expect11,8),//12               
+};
+
 // 50ms
 
 // Declare SDO object value
@@ -61,38 +115,38 @@ static CANMessage fake[24] = {
  * 0x2000 Komponenteninformation
  * **/
 
-
-
-
-
-
-//#define Truck_ID            "ECE 225       2011" // must divide 4 or some " " will be added at the end
-#define Truck_ID            "ECE225        2015" // must be even number of char
-#define Truck_ID_indx       49          // +6 words ceil(22/4.0)
-
 #define Truck_null_word     ((uint32_t)0x00000000U)          // save some extra space symbol
 
 typedef struct SDO {
 public:    
     uint32_t index;
     uint32_t address;
-    uint32_t value;
+    uint32_t COB_ID;
     
     struct SDO* next;
     uint8_t length;
     bool segmented;
 
     uint32_t to_save;
+    String segmented_string;
 
     // Constructor
-    SDO(uint32_t _index, uint32_t _address, uint32_t _value, struct SDO* _next, uint8_t _length, bool _segmented, uint32_t _to_save){            
+    SDO(uint32_t _index, uint32_t _address, uint32_t _COB_ID, struct SDO* _next, uint8_t _length, bool _segmented, uint32_t _to_save){            
         index = _index;
         address = _address;
-        value = _value; // not value to be saved in SRAM but the 0x20002 value
+        COB_ID = _COB_ID; // not value to be saved in SRAM but the 0x20002 value
         next = _next;
         length = _length;
         segmented = _segmented;
         to_save = _to_save;
+    }
+
+    SDO(){
+        // do nothing
+    }
+
+    void set_segmented_string(String temp){
+        segmented_string = temp;
     }
 };
 
@@ -462,6 +516,7 @@ typedef enum {
 } CO_SDO_return_t;
 
 // SDO server object
+/*
 typedef struct
 {
     // From CO_SDOserver_init()
@@ -507,20 +562,125 @@ typedef struct
     OD_size_t bufOffsetRd;
 
 } CO_SDOserver_t;
+*/
+
+typedef enum {
+    CO_SDO_ST_IDLE = 0x00U,
+    CO_SDO_ST_ABORT = 0x01U,
+    CO_SDO_ST_DOWNLOAD_LOCAL_TRANSFER = 0x10U,
+    CO_SDO_ST_DOWNLOAD_INITIATE_REQ = 0x11,
+    CO_SDO_ST_DOWNLOAD_INITIATE_RSP = 0x12U,
+    CO_SDO_ST_DOWNLOAD_SEGMENT_REQ = 0x13U,
+    CO_SDO_ST_DOWNLOAD_SEGMENT_RSP = 0x14U,
+    CO_SDO_ST_UPLOAD_LOCAL_TRANSFER = 0x20U,
+    CO_SDO_ST_UPLOAD_INITIATE_REQ = 0x21U,
+    CO_SDO_ST_UPLOAD_INITIATE_RSP = 0x22U,
+    CO_SDO_ST_UPLOAD_SEGMENT_REQ = 0x23U,
+    CO_SDO_ST_UPLOAD_SEGMENT_RSP = 0x24U,
 
 
+} CO_SDO_state_t;
+
+/**
+ * SDO abort codes.
+ *
+ * Send with Abort SDO transfer message.
+ *
+ * The abort codes not listed here are reserved.
+ */
+typedef enum {
+    /** 0x00000000, No abort */
+    CO_SDO_AB_NONE                  = 0x00000000UL,
+    /** 0x05030000, Toggle bit not altered */
+    CO_SDO_AB_TOGGLE_BIT            = 0x05030000UL,
+    /** 0x05040000, SDO protocol timed out */
+    CO_SDO_AB_TIMEOUT               = 0x05040000UL,
+    /** 0x05040001, Command specifier not valid or unknown */
+    CO_SDO_AB_CMD                   = 0x05040001UL,
+    /** 0x05040002, Invalid block size in block mode */
+    CO_SDO_AB_BLOCK_SIZE            = 0x05040002UL,
+    /** 0x05040003, Invalid sequence number in block mode */
+    CO_SDO_AB_SEQ_NUM               = 0x05040003UL,
+    /** 0x05040004, CRC error (block mode only) */
+    CO_SDO_AB_CRC                   = 0x05040004UL,
+    /** 0x05040005, Out of memory */
+    CO_SDO_AB_OUT_OF_MEM            = 0x05040005UL,
+    /** 0x06010000, Unsupported access to an object */
+    CO_SDO_AB_UNSUPPORTED_ACCESS    = 0x06010000UL,
+    /** 0x06010001, Attempt to read a write only object */
+    CO_SDO_AB_WRITEONLY             = 0x06010001UL,
+    /** 0x06010002, Attempt to write a read only object */
+    CO_SDO_AB_READONLY              = 0x06010002UL,
+    /** 0x06020000, Object does not exist in the object dictionary */
+    CO_SDO_AB_NOT_EXIST             = 0x06020000UL,
+    /** 0x06040041, Object cannot be mapped to the PDO */
+    CO_SDO_AB_NO_MAP                = 0x06040041UL,
+    /** 0x06040042, Number and length of object to be mapped exceeds PDO
+     * length */
+    CO_SDO_AB_MAP_LEN               = 0x06040042UL,
+    /** 0x06040043, General parameter incompatibility reasons */
+    CO_SDO_AB_PRAM_INCOMPAT         = 0x06040043UL,
+    /** 0x06040047, General internal incompatibility in device */
+    CO_SDO_AB_DEVICE_INCOMPAT       = 0x06040047UL,
+    /** 0x06060000, Access failed due to hardware error */
+    CO_SDO_AB_HW                    = 0x06060000UL,
+    /** 0x06070010, Data type does not match, length of service parameter does
+     * not match */
+    CO_SDO_AB_TYPE_MISMATCH         = 0x06070010UL,
+    /** 0x06070012, Data type does not match, length of service parameter too
+     * high */
+    CO_SDO_AB_DATA_LONG             = 0x06070012UL,
+    /** 0x06070013, Data type does not match, length of service parameter too
+     * short */
+    CO_SDO_AB_DATA_SHORT            = 0x06070013UL,
+    /** 0x06090011, Sub index does not exist */
+    CO_SDO_AB_SUB_UNKNOWN           = 0x06090011UL,
+    /** 0x06090030, Invalid value for parameter (download only). */
+    CO_SDO_AB_INVALID_VALUE         = 0x06090030UL,
+    /** 0x06090031, Value range of parameter written too high */
+    CO_SDO_AB_VALUE_HIGH            = 0x06090031UL,
+    /** 0x06090032, Value range of parameter written too low */
+    CO_SDO_AB_VALUE_LOW             = 0x06090032UL,
+    /** 0x06090036, Maximum value is less than minimum value. */
+    CO_SDO_AB_MAX_LESS_MIN          = 0x06090036UL,
+    /** 0x060A0023, Resource not available: SDO connection */
+    CO_SDO_AB_NO_RESOURCE           = 0x060A0023UL,
+    /** 0x08000000, General error */
+    CO_SDO_AB_GENERAL               = 0x08000000UL,
+    /** 0x08000020, Data cannot be transferred or stored to application */
+    CO_SDO_AB_DATA_TRANSF           = 0x08000020UL,
+    /** 0x08000021, Data cannot be transferred or stored to application because
+     * of local control */
+    CO_SDO_AB_DATA_LOC_CTRL         = 0x08000021UL,
+    /** 0x08000022, Data cannot be transferred or stored to application because
+     * of present device state */
+    CO_SDO_AB_DATA_DEV_STATE        = 0x08000022UL,
+    /** 0x08000023, Object dictionary not present or dynamic generation fails */
+    CO_SDO_AB_DATA_OD               = 0x08000023UL,
+    /** 0x08000024, No data available */
+    CO_SDO_AB_NO_DATA               = 0x08000024UL
+} CO_SDO_abortCode_t;
 
 class LOITRUCK {
 public:
 /* ------------------------------- GLOBAL VAR ------------------------------- */
     can_t my_can; // mbed CAN object
     char counter = 0; 
-    CANMessage msg; // mbed CAN message object
+    CANMessage msg_to_send; // mbed CAN message object
     FDCAN_RxHeaderTypeDef RxHeader; // HAL RxHeader object
     FDCAN_TxHeaderTypeDef TxHeader; // HAL TxHeader object
     uint8_t RxData[8]; // Buffer to save RxData
     uint8_t TxData[8]; // Buffer to save TxData
     FDCAN_ErrorCountersTypeDef error_counter; // Error Counter
+    CO_SDO_state_t state; // SDO state    
+    int dataSizeToWrite = 0;
+    SDO found_SDO;
+    uint8_t SDO_toggle = 0;
+    uint8_t segment_remain = 0;
+    bool new_SDO_received = false;
+    char buffer_string[100][40];
+    int buffer_count = 0;
+
 
 /* -------------------------------- FOR SRAM -------------------------------- */
     SRAM_HandleTypeDef hsram;
@@ -558,10 +718,11 @@ public:
     uint8_t fake_index = 1;
     //uint16_t test_worst_case[100];
     int test_worst_case_count = 0;
+    int test_SDO_process_count = 0;
 
 /* ------------------------------ FOR SEGMENTED ----------------------------- */
     uint8_t segment_count = 0;
-    bool segmented = false;
+    //bool segmented = false;
     uint8_t add_count = 0;
     uint8_t rest_count = 0;
     uint32_t rest_char = 0;
@@ -585,10 +746,13 @@ public:
 /* ------------------------------- CONSTRUCTOR ------------------------------ */
     LOITRUCK();
     void SDO_process_function();
-    void Upload_procedure();
-    void Download_procedure();
+    void Download_function();
     void Upload_expedited_function();
     void Upload_segmented_function();
+    void CAN_send();
+    uint16_t prepare_ID();
+    struct SDO* find_value(struct SDO** head_ref, uint32_t value);
+    bool compare_with_expect();
 };
 
 #endif

@@ -9,6 +9,7 @@
 #include "src/TIMER/TIMER.h"
 #include "src/UTILITY/UTILITY.h"
 #include "src/MY_TEST/test_worst_case.h"
+#include "src/MY_TEST/test_SDO_process.h"
 
 /* ------------------------------- CANOpenNode ------------------------------ */
 //#include "src/CANopenNode/CANopen.h"
@@ -51,7 +52,6 @@ char buffer[40];
 
 
 Thread send_fake_heart_beat(osPriorityNormal);
-Thread CANOpen_process(osPriorityLow);
 Thread SDO_process(osPriorityHigh);
 
 LOITRUCK loiTruck = LOITRUCK(); // only loiTruck on M7
@@ -68,211 +68,14 @@ void send_fake(){
     }    
 }
 
-HAL_StatusTypeDef SDO_process_function(){
-  // need mutex here
-  if (HAL_FDCAN_GetRxFifoFillLevel(&loiTruck.my_can.CanHandle, FDCAN_RX_FIFO0) == 0){
-    return HAL_ERROR;
-  }  
-
-  if (HAL_FDCAN_GetRxMessage(&loiTruck.my_can.CanHandle, FDCAN_RX_FIFO0, &loiTruck.RxHeader, loiTruck.RxData) != HAL_OK){
-    return HAL_ERROR;
-  }
-
-  if ((loiTruck.RxData[0] & 0xF0 == 0x40) | (loiTruck.RxData[0] & 0xF0 == 0x60) | loiTruck.segmented){
-    // READ COMMAND
-    uint32_t temp = 0;    
-    uint32_t COB_ID = (loiTruck.RxData[2] << 16) | (loiTruck.RxData[1] << 8) | loiTruck.RxData[3];
-    String str = String(COB_ID);
-    int str_int = str.toInt();
-    
-    switch (str_int)
-    {
-    case 200000:
-      temp = first_SDO_address;
-      break;
-    case 200001:
-      temp = res_2000_01_address;
-      break;
-    case 200003:
-      temp = res_2000_03_address;
-      break;  
-    case 200202:
-      temp = res_2002_02_address;
-      break;
-    case 400708:
-      temp = res_4007_08_address;
-      break;
-    case 400702:
-      temp = res_4007_02_address;
-      break;    
-    case 400701:
-      temp = res_4007_01_address;
-      break;
-    case 400700:
-      temp = res_4007_00_address;
-      break;
-    case 400004:
-      temp = res_4000_04_address;
-      break;
-    case 400003:
-      temp = res_4000_03_address;
-      break;
-    case 400002:
-      temp = res_4000_02_address;
-      break;
-    case 400001:
-      temp = res_4000_01_address;
-      break;
-    case 240007:
-      temp = res_2400_07_address;
-      break;
-    case 240107:
-      temp = res_2401_07_address;
-      break;
-    case 240207:
-      temp = res_2402_07_address;
-      break;
-    case 240304:
-      temp = res_2403_04_address;
-      break;
-    case 240404:
-      temp = res_2404_04_address;
-      break;
-    case 240504:
-      temp = res_2405_04_address;
-      break;
-    case 240303:
-      temp = res_2403_03_address;
-      break;
-    case 240403:
-      temp = res_2404_03_address;
-      break;
-    case 240503:
-      temp = res_2405_03_address;
-      break;
-    case 240407:
-      temp = res_2404_07_address;
-      break;
-    case 240307:
-      temp = res_2403_07_address;
-      break;
-    case 240302:
-      temp = res_2403_02_address;
-      break;
-    case 240102:
-      temp = res_2401_02_address;
-      break;
-    case 240402:
-      temp = res_2404_02_address;
-      break;
-    case 246002:
-      temp = res_2460_02_address;
-      break;
-    case 240507:
-      temp = res_2405_07_address;
-      break;
-    case 240202:
-      temp = res_2402_02_address;
-      break;
-    case 240502:
-      temp = res_2405_02_address;
-      break;
-    case 241102:
-      temp = res_2411_02_address;
-      break;
-    case 200103:
-      temp = res_2001_03_address;
-      break;
-    case 200102:
-      temp = res_2001_02_address;
-      break;
-    case 246102:
-      temp = res_2461_02_address;
-      break;
-    case 241402:
-      temp = res_2414_02_address;
-      break;
-    case 292302:
-      temp = res_2923_02_address;
-      break;
-    case 241302:
-      temp = res_2413_02_address;
-      break;
-    case 202001:
-      temp = res_2020_01_address;
-      break;
-    case 200201:
-      temp = res_2002_01_address;
-      break;
-    case 210606:
-      temp = res_2106_06_address;
-      break;
-    case 210402:
-      temp = res_2104_02_address;
-      break;
-    case 210302:
-      temp = res_2103_02_address;
-      break;
-    case 210306:
-      temp = res_2103_06_address;
-      break;
-    case 220106:
-      temp = res_2201_06_address;
-      break;
-    case 220102:
-      temp = res_2201_02_address;
-      break;
-    case 210106:
-      temp = res_2101_06_address;
-      break;
-    case 210102:
-      temp = res_2101_02_address;
-      break;
-    case 200101:
-      temp = res_2001_01_address;
-      break;
-    case 220006:
-      temp = res_2200_06_address;
-      break;
-    case 220002:
-      temp = res_2200_02_address;
-      break;
-    case 210006:
-      temp = res_2100_06_address;
-      break;
-    case 210206:
-      temp = res_2102_06_address;
-      break;
-    case 210202:
-      temp = res_2102_02_address;
-      break;
-    case 210002:
-      temp = res_2100_02_address;
-      break;
-    case 202002:
-      temp = res_2020_02_address;
-      break;
-    case 200204: // segmented
-      temp = Truck_ID_address;
-      break;
-    default:
-    {
-      struct SDO* tmp = find_value(&loiTruck.my_SDO_List, COB_ID);
-      if (tmp != NULL){
-        temp = tmp->value;
-      }      
-      break;
+void SDO_process_thread(){
+  while (true){
+    if (loiTruck.new_SDO_received){
+      loiTruck.SDO_process_function();
+      loiTruck.new_SDO_received = true;
     }
-      
-    }
-
-    
-    
-
   }
-
 }
-
 
 
 /* ------------------------------ RTC CALLBACK ------------------------------ */
@@ -457,8 +260,8 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
   
     // Do SDO process
   
-
-    loiTruck.receiveMsg = true;
+    loiTruck.new_SDO_received = true;
+    //loiTruck.receiveMsg = true;
 
     
   
@@ -558,15 +361,8 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
   if (loiTruck.alarm){
     loiTruck.timer6 = true;
   } 
-
-  
   
 }
-
-
-
-
-
 
 
 
@@ -649,6 +445,7 @@ void setup() {
 
     /* ----------------------------- Init SDO object ---------------------------- */
     init_SDO_object(&loiTruck);
+    
 
     /* --------------------- Display SDO object linked list --------------------- */
     display_Linked_List(&loiTruck);
@@ -661,7 +458,7 @@ void setup() {
     Set_CAN_Pin(&loiTruck.my_can, PB_8, PH_13, 250000);  
 
     /* ----------------------- Set external Loop Back mode ---------------------- */
-    my_can_mode(&loiTruck.my_can, MODE_NORMAL);
+    my_can_mode(&loiTruck.my_can, MODE_TEST_SILENT);
 
     /* -------------------------- set filter and start -------------------------- */
     //int my_can_filter(can_t *obj, uint32_t id, uint32_t mask, CANFormat format, int32_t handle)
@@ -705,17 +502,23 @@ void setup() {
     
     // Start Thread
     //send_fake_heart_beat.start(send_fake); // Start an independent thread to send fake heart beat
-   
+    //SDO_process.start(SDO_process_thread);   
 }
 
 
 void loop() {
   /* --------------- put your main code here, to run repeatedly: -------------- */
-  while (loiTruck.test_worst_case_count < 1000){
-    int temp = test_worst_case(&loiTruck);
-    sprintf(buffer, "%d.%d\n",(loiTruck.test_worst_case_count + 56),temp);
-    Serial.print(buffer);
-    loiTruck.test_worst_case_count++;
+  while (loiTruck.test_SDO_process_count < 12){
+    test_SDO_process(&loiTruck);
+    //sprintf(buffer, "%d.%d\n",(loiTruck.test_worst_case_count + 56),temp);
+    //Serial.print(buffer);    
+  }
+
+  if (loiTruck.test_SDO_process_count == 12){
+    for (int i = 0; i<loiTruck.buffer_count; i++){
+      Serial.println(loiTruck.buffer_string[i]);
+    }   
+    loiTruck.test_SDO_process_count++;   
   }
   
 
