@@ -367,7 +367,8 @@ void append_Linked_List(struct SDO** head_ref, struct SDO* temp_node){
   struct SDO *last = *head_ref;
     
   if (*head_ref == NULL){
-    head_ref = temp_node;
+    *head_ref = temp_node;
+    //Serial.println("NULL");
     return;
   }
 
@@ -378,13 +379,14 @@ void append_Linked_List(struct SDO** head_ref, struct SDO* temp_node){
   // change the next of last node
   last->next = temp_node;
 
-  Serial.println("Appended");
+  //Serial.println("Appended!");
+  
   return;
 }
 
 void display_Linked_List(LOITRUCK* loiTruck){
-  Serial.println("Called Displayed");
-  Serial.println(loiTruck->my_SDO_List == NULL);
+  //Serial.println("Called Displayed");
+  //Serial.println(loiTruck->my_SDO_List == NULL);
   struct SDO *tmp;
   if (loiTruck->my_SDO_List == NULL){
     return;
@@ -395,7 +397,7 @@ void display_Linked_List(LOITRUCK* loiTruck){
       Serial.print("SDO index:"); Serial.println(tmp->index);
       Serial.print("SDO address:"); Serial.println(tmp->address, HEX);
       Serial.print("SDO COB_ID:"); Serial.println(tmp->COB_ID, HEX);
-
+      Serial.print("segmented_string:"); Serial.println(tmp->segmented_string);
       tmp = tmp->next;
     }
   }

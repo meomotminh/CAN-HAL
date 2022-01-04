@@ -7,51 +7,29 @@
 /* ------------------------ Write SDO object to SRAM ------------------------ */
 uint8_t write_SDO_to_SRAM(LOITRUCK* loiTruck){
   loiTruck->uwIndex = 0;
-  
-struct SDO* temp;
-//struct SDO temp(0,0,0,NULL,0,false);
 
-
-  //*(__IO uint32_t *)(SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*first_SDO.index)) = first_SDO.to_save;
-  
+  SDO* temp = &first_SDO;  
   // create SDO object and add to linked list
-  temp = &first_SDO;
-  //temp->address = SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*temp->index);
+  String truck_id_temp = String(Truck_ID);  
 
-  append_Linked_List(&loiTruck->my_SDO_List, temp);
+  while (truck_id_temp.length() < 32){
+    truck_id_temp += " ";
+  } 
+  temp->set_segmented_string(truck_id_temp);
+  
+  //Serial.println(temp->segmented_string);
+
+  append_Linked_List(&loiTruck->my_SDO_List, &first_SDO);
+
+  //Serial.println(first_SDO.segmented_string);
 
   while (temp->next != NULL){
     
-    temp = temp->next;
-    //temp->address = SRAM_BANK_ADDR + WRITE_READ_ADDR + (4*temp->index);
+    temp = temp->next;    
     *(__IO uint32_t *)(temp->address) = temp->to_save;
-    
-    append_Linked_List(&loiTruck->my_SDO_List, temp);
   }
 
-#ifdef Truck_ID
-  
-  String truck_id_temp = String(Truck_ID);
-
-  //Serial.print("Truck ID:");  //Serial.println(truck_id_temp);
-  // create object SDO Truck_ID of length 0x20 = 32 and segmented = true
-  
-  while (truck_id_temp.length() < 32){
-    truck_id_temp += " ";
-  }
-
-  struct SDO last_SDO = *(get_last_SDO(&loiTruck->my_SDO_List));
-  int temp_index = last_SDO.index + 1;
-  
-  struct SDO temp_ident_SDO = SDO(temp_index,0,0x200204,NULL,0x20,true,0);  
-  temp_ident_SDO.set_segmented_string(truck_id_temp);
-  last_SDO.next = &temp_ident_SDO;
-  //Serial.println(temp_ident_SDO.segmented_string);
-
-  append_Linked_List(&loiTruck->my_SDO_List, &temp_ident_SDO);
-  
-#endif
-
+  loiTruck->last_linked_list_index = 55;
   
 
   return 1;

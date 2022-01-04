@@ -8,6 +8,7 @@ int test_SDO_process(LOITRUCK *loiTruck){
     my_can_write(&loiTruck->my_can, test_SDO[loiTruck->test_SDO_process_count++],0,loiTruck);
     
     // Get current DWT CYCCNT
+    DWT->CYCCNT = 0;
     DWT_start = DWT_get_CYCCNT();
     
     // process

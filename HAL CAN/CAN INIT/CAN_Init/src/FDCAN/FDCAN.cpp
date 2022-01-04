@@ -346,9 +346,8 @@ int my_can_write(can_t *obj, CANMessage msg, int cc, LOITRUCK* loiTruck){
     } else {
       ////Serial.println("Send success!");
     }
-    
-    
-    sprintf(loiTruck->buffer_string[loiTruck->buffer_count++],"S:\t%x\t%x\t%x\t%x\t%x\t%x\t%x\t%x",loiTruck->TxHeader.Identifier,loiTruck->TxData[0],loiTruck->TxData[1],loiTruck->TxData[2],loiTruck->TxData[3],loiTruck->TxData[4],loiTruck->TxData[5],loiTruck->TxData[6],loiTruck->TxData[7]);  
+        
+    //sprintf(loiTruck->buffer_string[(loiTruck->buffer_count++) % 100],"S:\t%x\t%x\t%x\t%x\t%x\t%x\t%x\t%x\n",loiTruck->TxHeader.Identifier,loiTruck->TxData[0],loiTruck->TxData[1],loiTruck->TxData[2],loiTruck->TxData[3],loiTruck->TxData[4],loiTruck->TxData[5],loiTruck->TxData[6],loiTruck->TxData[7]);
   }
 
   

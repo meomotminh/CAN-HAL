@@ -256,15 +256,9 @@ void HAL_FDCAN_TxBufferCompleteCallback(FDCAN_HandleTypeDef *hfdcan, uint32_t Bu
 }
 
 
-void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs){
-  
+void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs){  
     // Do SDO process
-  
-    loiTruck.new_SDO_received = true;
-    //loiTruck.receiveMsg = true;
-
-    
-  
+   // loiTruck.SDO_process_function();     
 }
 
 void HAL_FDCAN_TimeoutOccurredCallback(FDCAN_HandleTypeDef *hfdcan){
@@ -448,7 +442,7 @@ void setup() {
     
 
     /* --------------------- Display SDO object linked list --------------------- */
-    display_Linked_List(&loiTruck);
+    //display_Linked_List(&loiTruck);
 
     /* ----------------------- Configure FDCAN peripheral ----------------------- */
     //FDCAN_Config();
@@ -458,7 +452,8 @@ void setup() {
     Set_CAN_Pin(&loiTruck.my_can, PB_8, PH_13, 250000);  
 
     /* ----------------------- Set external Loop Back mode ---------------------- */
-    my_can_mode(&loiTruck.my_can, MODE_TEST_SILENT);
+    my_can_mode(&loiTruck.my_can, MODE_TEST_LOCAL);
+    loiTruck.my_can_mode = MODE_TEST_LOCAL;
 
     /* -------------------------- set filter and start -------------------------- */
     //int my_can_filter(can_t *obj, uint32_t id, uint32_t mask, CANFormat format, int32_t handle)
@@ -501,24 +496,25 @@ void setup() {
 
     
     // Start Thread
-    //send_fake_heart_beat.start(send_fake); // Start an independent thread to send fake heart beat
+    send_fake_heart_beat.start(send_fake); // Start an independent thread to send fake heart beat
     //SDO_process.start(SDO_process_thread);   
 }
 
 
 void loop() {
   /* --------------- put your main code here, to run repeatedly: -------------- */
-  while (loiTruck.test_SDO_process_count < 12){
-    test_SDO_process(&loiTruck);
-    //sprintf(buffer, "%d.%d\n",(loiTruck.test_worst_case_count + 56),temp);
-    //Serial.print(buffer);    
+  
+  
+  while (loiTruck.test_SDO_process_count < 12){    
+    int passed_cycle = test_SDO_process(&loiTruck);
+    sprintf(loiTruck.buffer_string[(loiTruck.buffer_count++) % 100], "Passed Time:%d\n",passed_cycle);        
   }
-
-  if (loiTruck.test_SDO_process_count == 12){
+  
+  if (loiTruck.test_SDO_process_count < 12){
     for (int i = 0; i<loiTruck.buffer_count; i++){
-      Serial.println(loiTruck.buffer_string[i]);
-    }   
-    loiTruck.test_SDO_process_count++;   
+      Serial.print(loiTruck.buffer_string[i]);
+    }       
+    loiTruck.test_SDO_process_count++;
   }
   
 
