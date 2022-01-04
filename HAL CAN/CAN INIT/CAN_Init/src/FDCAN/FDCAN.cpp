@@ -313,7 +313,7 @@ int my_can_write(can_t *obj, CANMessage msg, int cc, LOITRUCK* loiTruck){
   
   loiTruck->TxHeader.IdType = FDCAN_STANDARD_ID;
   loiTruck->TxHeader.TxFrameType = FDCAN_DATA_FRAME;
-  loiTruck->TxHeader.DataLength = msg.len << 16;
+  loiTruck->TxHeader.DataLength = 8U << 16;
 
   ////Serial.print("Data length:"); //Serial.println(loiTruck->TxHeader.DataLength, HEX);
   
@@ -325,7 +325,7 @@ int my_can_write(can_t *obj, CANMessage msg, int cc, LOITRUCK* loiTruck){
   loiTruck->TxHeader.MessageMarker = 0;
 
   for (int i = 0; i<msg.len; i++){
-    loiTruck->msg.data[i] = msg.data[i];    // For print out later
+    loiTruck->msg_to_send.data[i] = msg.data[i];    // For print out later
     loiTruck->TxData[i] = msg.data[i];
     ////Serial.println(loiTruck->TxData[i]);
   }
@@ -346,18 +346,8 @@ int my_can_write(can_t *obj, CANMessage msg, int cc, LOITRUCK* loiTruck){
     } else {
       ////Serial.println("Send success!");
     }
-    
-    if (!loiTruck->fake_heart_beat){
-      //Serial.print("S :\t"); //Serial.print(loiTruck->TxHeader.Identifier,HEX); //Serial.print(" ");
-
         
-      for (uint8_t i = 0; i < (msg.len); i++){
-        //Serial.print(" ");
-        //Serial.print(loiTruck->msg.data[i], HEX); 
-      }
-
-      //Serial.println();   
-    }
+    //sprintf(loiTruck->buffer_string[(loiTruck->buffer_count++) % 100],"S:\t%x\t%x\t%x\t%x\t%x\t%x\t%x\t%x\n",loiTruck->TxHeader.Identifier,loiTruck->TxData[0],loiTruck->TxData[1],loiTruck->TxData[2],loiTruck->TxData[3],loiTruck->TxData[4],loiTruck->TxData[5],loiTruck->TxData[6],loiTruck->TxData[7]);
   }
 
   

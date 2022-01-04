@@ -179,6 +179,7 @@ uint8_t read_parameter(LOITRUCK* loiTruck){
     if (found->segmented){
       // first message
       if ((loiTruck->segment_count == 0) || (loiTruck->RxData[0] == 0x40)){
+        /*
         loiTruck->segmented = true;   // Flag at the beginning
         loiTruck->add_count = 0;
         loiTruck->bit_swap = 0;
@@ -194,7 +195,7 @@ uint8_t read_parameter(LOITRUCK* loiTruck){
         loiTruck->TxData[7] = 0x00;
 
         
-
+        */
         loiTruck->segment_count++;
       
       } else if ((loiTruck->segment_count <= (found->length / 7.0)) && ((loiTruck->RxData[0] == 0x60) || (loiTruck->RxData[0] == 0x70))) { // each message send 7 bytes data
@@ -286,17 +287,18 @@ uint8_t read_parameter(LOITRUCK* loiTruck){
         loiTruck->TxData[7] = 0x00; 
 
         ////Serial.println("*****FINAL SEGMENT****");
+        /*
         loiTruck->segmented = false;        
         loiTruck->segment_count = 0;
         loiTruck->add_count = 0;
         loiTruck->rest_count = 0;
         loiTruck->rest_char = 0;
-        
+        */
       }
 
     // Not loiTruck->segmented      
     } else {
-
+        /*
         loiTruck->segmented = false;        
         loiTruck->segment_count = 0;
         loiTruck->add_count = 0;
@@ -313,6 +315,7 @@ uint8_t read_parameter(LOITRUCK* loiTruck){
         loiTruck->TxData[5] = read_from_SRAM_1st >> 16;
         loiTruck->TxData[6] = read_from_SRAM_1st >> 8;
         loiTruck->TxData[7] = read_from_SRAM_1st;
+        */
     }
 
     // print out 0x400001 message
@@ -343,7 +346,8 @@ struct SDO* find_value(struct SDO** head_ref, uint32_t value){
     
   // traverse until the end
   while (last->next != NULL){
-    if (last->value == value) 
+    Serial.println(last->COB_ID,HEX);
+    if (last->COB_ID == value) 
       { 
         break;
       } else {
@@ -351,13 +355,9 @@ struct SDO* find_value(struct SDO** head_ref, uint32_t value){
       }    
   }
 
-  if (last->value == value){
+  if (last->COB_ID == value){
     return last;
-  } else {
-    return NULL;
-  }
-
-  return last;
+  } else return NULL;
 
 }
 
@@ -365,22 +365,10 @@ struct SDO* find_value(struct SDO** head_ref, uint32_t value){
 void append_Linked_List(struct SDO** head_ref, struct SDO* temp_node){
   
   struct SDO *last = *head_ref;
-  struct SDO* new_node = (struct SDO*) malloc(sizeof(struct SDO));
-
-  
-
-  // assign value
-  new_node->index = temp_node->index;
-  new_node->address = temp_node->address;
-  new_node->value = temp_node->value;
-  new_node->next = NULL;
-  new_node->length = temp_node->length;
-  new_node->segmented = temp_node->segmented;
     
-  // if linked list is empty then make new node as head
   if (*head_ref == NULL){
-    *head_ref = new_node;
-    
+    *head_ref = temp_node;
+    //Serial.println("NULL");
     return;
   }
 
@@ -389,12 +377,15 @@ void append_Linked_List(struct SDO** head_ref, struct SDO* temp_node){
     last = last->next;
 
   // change the next of last node
-  last->next = new_node;
+  last->next = temp_node;
+
+  //Serial.println("Appended!");
+  
   return;
 }
 
 void display_Linked_List(LOITRUCK* loiTruck){
-  //Serial.println("Called");
+  //Serial.println("Called Displayed");
   //Serial.println(loiTruck->my_SDO_List == NULL);
   struct SDO *tmp;
   if (loiTruck->my_SDO_List == NULL){
@@ -402,11 +393,11 @@ void display_Linked_List(LOITRUCK* loiTruck){
   } else {    
     tmp = loiTruck->my_SDO_List;
     while (tmp != NULL){
-      //Serial.println("****************");
-      //Serial.print("SDO index:"); //Serial.println(tmp->index);
-      //Serial.print("SDO address:"); //Serial.println(tmp->address, HEX);
-      //Serial.print("SDO value:"); //Serial.println(tmp->value, HEX);
-
+      Serial.println("****************");
+      Serial.print("SDO index:"); Serial.println(tmp->index);
+      Serial.print("SDO address:"); Serial.println(tmp->address, HEX);
+      Serial.print("SDO COB_ID:"); Serial.println(tmp->COB_ID, HEX);
+      Serial.print("segmented_string:"); Serial.println(tmp->segmented_string);
       tmp = tmp->next;
     }
   }

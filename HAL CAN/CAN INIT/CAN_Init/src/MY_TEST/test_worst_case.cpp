@@ -13,7 +13,7 @@ int test_worst_case(LOITRUCK *loiTruck){
     
     
         
-    struct SDO temp_SDO(temp_index, 0,0,NULL,0,true,0);
+    struct SDO temp_SDO(temp_index, 0,0,NULL,0,true,0,false);
     append_Linked_List(&loiTruck->my_SDO_List, &temp_SDO);
 
     // Get current DWT CYCCNT
