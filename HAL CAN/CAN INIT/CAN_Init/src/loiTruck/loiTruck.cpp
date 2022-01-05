@@ -6,17 +6,18 @@ LOITRUCK::LOITRUCK(){
 
 void LOITRUCK::SDO_process_function(){
     
-    //sprintf(this->buffer_string[this->buffer_count++],"enter process function");
-    // hang until copy received data into local object
-    while (HAL_FDCAN_GetRxMessage(&this->my_can.CanHandle, FDCAN_RX_FIFO0, &this->RxHeader, this->RxData) != HAL_OK){
-    ////Serial.println("HAL_FDCAN_GetRxMessage error");
-      
+    
+    if (this->state != CO_SDO_ST_IDLE){
+      return;
     }
 
-    sprintf(this->buffer_string[(this->buffer_count++) % 100],"R:\t%x\t%x\t%x\t%x\t%x\t%x\t%x\t%x\n",this->RxHeader.Identifier,this->RxData[0],this->RxData[1],this->RxData[2],this->RxData[3],this->RxData[4],this->RxData[5],this->RxData[6],this->RxData[7]);
+    // hang until copy received data into local object
+    while (HAL_FDCAN_GetRxMessage(&this->my_can.CanHandle, FDCAN_RX_FIFO0, &this->RxHeader, this->RxData) != HAL_OK){      
+    }
+
+    //sprintf(this->buffer_string[(this->buffer_count++) % 100],"R:\t%x\t%x\t%x\t%x\t%x\t%x\t%x\t%x\n",this->RxHeader.Identifier,this->RxData[0],this->RxData[1],this->RxData[2],this->RxData[3],this->RxData[4],this->RxData[5],this->RxData[6],this->RxData[7]);
     
-    
-    
+        
     // process command_ID and COB_ID    
     bool upload = false;    
     uint32_t COB_ID = (this->RxData[2] << 16) | (this->RxData[1] << 8) | this->RxData[3];
@@ -24,15 +25,12 @@ void LOITRUCK::SDO_process_function(){
     int COB_ID_int = COB_ID_str.toInt();
     uint32_t received_value = (this->RxData[4] << 16) | (this->RxData[5] << 8) | this->RxData[6];
 
-    //Serial.print("start:");Serial.println(COB_ID_int, HEX);
-
+    
     //sprintf(this->buffer_string[this->buffer_count++],"RxData[0]: %x",RxData[0]);
-    /**
-     * @brief UPLOAD?
-     * 
-     */
-    //Serial.println(this->RxData[0],HEX);
-    if (this->RxData[0] == 0x40){
+    
+
+    
+    if (this->RxData[0] & 0xF0 == 0x40){
         this->state = CO_SDO_ST_UPLOAD_INITIATE_REQ;
     } else if ((this->RxData[0] & 0xF0) == 0x20){
         //Serial.println(this->RxData[0] & 0xF0,HEX);
@@ -244,17 +242,13 @@ void LOITRUCK::SDO_process_function(){
     {
     case CO_SDO_ST_DOWNLOAD_INITIATE_REQ:
         {          
-        
-          //sprintf(this->buffer_string[(this->buffer_count++) % 100],"download state");
+                  
+          this->state = CO_SDO_ST_DOWNLOAD_INITIATE_RSP;
           // clear Tx buffer
-          memset(this->TxData, 0 , sizeof(this->TxData));
-
-          //Serial.println("Come to download");
-          //Serial.println(this->found_SDO->SDO_default);
+          memset(this->TxData, 0 , sizeof(this->TxData));        
           if (this->found_SDO->SDO_default){
               *(__IO uint32_t *)(this->found_SDO->address) = received_value;              
-          } else {
-              //Serial.println("Hier!");
+          } else {              
               this->found_SDO->to_save = received_value;
           }
             
@@ -265,26 +259,22 @@ void LOITRUCK::SDO_process_function(){
         
     case CO_SDO_ST_UPLOAD_INITIATE_REQ:
         {
+          this->state = CO_SDO_ST_UPLOAD_INITIATE_RSP;
           if (this->found_SDO->segmented){
-            
-            //sprintf(this->buffer_string[(this->buffer_count++) % 100],"upload segmented state");            
-            if (this->state != CO_SDO_ST_UPLOAD_INITIATE_RSP){
-              this->state = CO_SDO_ST_UPLOAD_INITIATE_RSP;       
+                        
+            if (this->state != CO_SDO_ST_UPLOAD_INITIATE_RSP){                     
               this->segment_remain = 5;       
             }             
             
             this->Upload_segmented_function();
-          } else {
-            //sprintf(this->buffer_string[(this->buffer_count++) % 100],"upload expedited state");            
-            
+          } else {                        
             this->Upload_expedited_function();
           }
           break;
         }
 
     case CO_SDO_ST_UPLOAD_SEGMENT_REQ:
-        {                 
-          //sprintf(this->buffer_string[(this->buffer_count++) % 100],"upload segmented continuous state");            
+        {                           
           this->state = CO_SDO_ST_UPLOAD_SEGMENT_RSP;  
           this->Upload_segmented_function();               
           break;
@@ -301,21 +291,14 @@ void LOITRUCK::SDO_process_function(){
 
 
 void LOITRUCK::Download_function(){
-  
-  this->state = CO_SDO_ST_DOWNLOAD_INITIATE_RSP;
-
-  
+    
   // update TxData
   this->TxData[0] = 0x60;
   this->TxData[1] = this->RxData[1];
   this->TxData[2] = this->RxData[2];
   this->TxData[3] = this->RxData[3];
 
-
-
-
   this->CAN_send();
-
   
   // clear last sent message
   if (this->my_can_mode != MODE_NORMAL){
@@ -424,9 +407,7 @@ void LOITRUCK::Upload_segmented_function(){
         this->TxData[0] = 0x7;
       } else {
         String to_send = this->found_SDO->segmented_string;
-        to_send = to_send.substring((5 - this->segment_remain)*7,(5 - this->segment_remain)*7 + 7);
-        //Serial.println(to_send);
-        //sprintf(this->buffer_string[(this->buffer_count++) % 100], "%s",to_send);
+        to_send = to_send.substring((5 - this->segment_remain)*7,(5 - this->segment_remain)*7 + 7);              
         this->segment_remain--;      
         to_send.getBytes(&this->TxData[1], to_send.length()+1);
       }
@@ -472,25 +453,38 @@ void LOITRUCK::CAN_send(){
   this->msg_to_send = CANMessage(this->TxHeader.Identifier, this->TxData,8);
 
   // check if ignore or delay or send_predefined
-  if (!this->ignore){
-    HAL_Delay(this->delay);
+  if (this->tool_state != TOOL_IGNORE){
+    if (this->tool_state == TOOL_DELAY){
+      HAL_Delay(this->current_Scenario->_delay_time);
+    }
     
+    if (this->tool_state == TOOL_PREDEFINED){
+      if (CANMessage(this->RxHeader.Identifier, this->RxData, this->RxHeader.DataLength) == *(this->current_Scenario->_input_CAN_message)){
+        this->TxHeader.Identifier = this->current_Scenario->_output_CAN_message.id;
+        this->TxHeader.DataLength = this->current_Scenario->_output_CAN_message.len;
+        memcpy(this->current_Scenario->_output_CAN_message.data, this->TxData, this->current_Scenario->_output_CAN_message.len);
+      }
+    }
   
-    if (HAL_FDCAN_AddMessageToTxFifoQ(&(this->my_can.CanHandle), &this->TxHeader, this->TxData) != HAL_OK){      
+    while (HAL_FDCAN_AddMessageToTxFifoQ(&(this->my_can.CanHandle), &this->TxHeader, this->TxData) != HAL_OK){      
+    
     } else {
+      // reset state
+      this->state = CO_SDO_ST_OK;
+      sprintf(this->buffer_string[(this->buffer_count++) % 100],"P:\t%x\t%x\t%x\t%x\t%x\t%x\t%x\t%x\n",this->TxHeader.Identifier,this->TxData[0],this->TxData[1],this->TxData[2],this->TxData[3],this->TxData[4],this->TxData[5],this->TxData[6],this->TxData[7]);
+      sprintf(this->buffer_string[(this->buffer_count++) % 100],"E:\t%x\t%x\t%x\t%x\t%x\t%x\t%x\t%x\n",expect_SDO[this->test_SDO_process_count-1].id,expect_SDO[this->test_SDO_process_count-1].data[0],expect_SDO[this->test_SDO_process_count-1].data[1],expect_SDO[this->test_SDO_process_count-1].data[2],expect_SDO[this->test_SDO_process_count-1].data[3],expect_SDO[this->test_SDO_process_count-1].data[4],expect_SDO[this->test_SDO_process_count-1].data[5],expect_SDO[this->test_SDO_process_count-1].data[6],expect_SDO[this->test_SDO_process_count-1].data[7]);  
+
+      if (this->compare_with_expect()){
+        sprintf(this->buffer_string[(this->buffer_count++) % 100],"PASSED\n");
+      } else {
+        sprintf(this->buffer_string[(this->buffer_count++) % 100],"FAILED\n");
+      }  
     }    
     
   }
 
 
-  //sprintf(this->buffer_string[(this->buffer_count++) % 100],"P:\t%x\t%x\t%x\t%x\t%x\t%x\t%x\t%x",this->TxHeader.Identifier,this->TxData[0],this->TxData[1],this->TxData[2],this->TxData[3],this->TxData[4],this->TxData[5],this->TxData[6],this->TxData[7]);
-  //sprintf(this->buffer_string[(this->buffer_count++) % 100],"E:\t%x\t%x\t%x\t%x\t%x\t%x\t%x\t%x",expect_SDO[this->test_SDO_process_count-1].id,expect_SDO[this->test_SDO_process_count-1].data[0],expect_SDO[this->test_SDO_process_count-1].data[1],expect_SDO[this->test_SDO_process_count-1].data[2],expect_SDO[this->test_SDO_process_count-1].data[3],expect_SDO[this->test_SDO_process_count-1].data[4],expect_SDO[this->test_SDO_process_count-1].data[5],expect_SDO[this->test_SDO_process_count-1].data[6],expect_SDO[this->test_SDO_process_count-1].data[7]);  
-
-  if (this->compare_with_expect()){
-    //sprintf(this->buffer_string[(this->buffer_count++) % 100],"PASSED");
-  } else {
-    //sprintf(this->buffer_string[(this->buffer_count++) % 100],"FAILED");
-  }  
+  
 }
 
 /* ------------------------ Find value in Linked List ----------------------- */
@@ -539,5 +533,60 @@ void LOITRUCK::display_Linked_List(){
       Serial.print("segmented_string:"); Serial.println(tmp->segmented_string);
       tmp = tmp->next;
     }
+  }
+}
+
+void LOITRUCK::State_process_function(){
+  Scenario* next_scenario = this->current_Scenario->_next;
+  
+
+  if (this->current_Scenario != NULL){
+    // change to next Scenario
+    if (next_scenario != NULL){
+      if (next_scenario->_start_time == this->passed_time_s){
+        this->current_Scenario = next_scenario;
+      }
+    }
+
+    // trigger at start time
+    if (this->current_Scenario->_start_time == this->passed_time_s){
+       switch (this->current_Scenario->_output_type)
+       {
+       case OUT_TIME_STAMP:{ // Delay
+         this->tool_state = TOOL_DELAY;
+         sprintf(this->buffer_string[(this->buffer_count++) % 100],"In Delay Mode\n");         
+         break;
+       }
+
+       case OUT_CAN_MESSAGE:{ // predefine
+         this->tool_state = TOOL_PREDEFINED;
+         sprintf(this->buffer_string[(this->buffer_count++) % 100],"In Predefined Mode\n");
+         break;
+       }
+
+       case OUT_FUNCTION:{ // Delay
+         this->tool_state = TOOL_FUNCTION;
+         sprintf(this->buffer_string[(this->buffer_count++) % 100],"In Function Mode\n");
+         break;
+       }
+
+       case OUT_IGNORE:{ // Delay
+         this->tool_state = TOOL_IGNORE;         
+         sprintf(this->buffer_string[(this->buffer_count++) % 100],"In Ignore Mode\n");
+         break;
+       }
+
+       case OUT_RESET:{ // Delay
+         this->tool_state = TOOL_DEFAULT;
+         sprintf(this->buffer_string[(this->buffer_count++) % 100],"In Default Mode\n");
+         this->state = CO_SDO_ST_IDLE;
+         break;
+       }                
+       default:
+         break;
+       }
+    }
+  } else {
+    this->current_Scenario = &Scenario_1;
   }
 }
