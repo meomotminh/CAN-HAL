@@ -57,6 +57,7 @@ void RTC_CalendarConfig(LOITRUCK* loiTruck){
 
 bool RTC_AlarmConfig(LOITRUCK* loiTruck){
    //Serial.println("Come Here!");
+   /*
    RTC_AlarmTypeDef AlarmA_Set;
 
    memset(&AlarmA_Set,0,sizeof(AlarmA_Set));
@@ -83,6 +84,7 @@ bool RTC_AlarmConfig(LOITRUCK* loiTruck){
    } else {
      return true;
    }
+   */
   
 }
 

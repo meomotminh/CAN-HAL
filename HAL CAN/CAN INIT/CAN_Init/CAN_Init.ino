@@ -352,9 +352,10 @@ void TIM6_DAC_IRQHandler(void){
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
   
   /* ----------------------- only trigger when alarm set ---------------------- */
-  if (loiTruck.alarm){
-    loiTruck.timer6 = true;
-  } 
+  loiTruck.passed_time_s++;
+  sprintf(loiTruck.buffer_string[(loiTruck.buffer_count++) % 100],"time passed(s):%d\n:",loiTruck.passed_time_s);         
+  
+  loiTruck.State_process_function();
   
 }
 
@@ -496,7 +497,7 @@ void setup() {
 
     
     // Start Thread
-    send_fake_heart_beat.start(send_fake); // Start an independent thread to send fake heart beat
+    //send_fake_heart_beat.start(send_fake); // Start an independent thread to send fake heart beat
     //SDO_process.start(SDO_process_thread);   
 }
 
@@ -504,19 +505,20 @@ void setup() {
 void loop() {
   /* --------------- put your main code here, to run repeatedly: -------------- */
   
-  
-  while (loiTruck.test_SDO_process_count < 12){    
+  /*
+  while (loiTruck.test_SDO_process_count < 11){    
     int passed_cycle = test_SDO_process(&loiTruck);
-    sprintf(loiTruck.buffer_string[(loiTruck.buffer_count++) % 100], "Passed Time:%d\n",passed_cycle);        
+    sprintf(loiTruck.buffer_string[(loiTruck.buffer_count++) % 100], "Passed Time:%.4f\n",(passed_cycle/400e6));        
   }
-  
-  if (loiTruck.test_SDO_process_count < 12){
+  */
+ 
+  if (loiTruck.buffer_count >= 100){
     for (int i = 0; i<loiTruck.buffer_count; i++){
       Serial.print(loiTruck.buffer_string[i]);
     }       
-    loiTruck.test_SDO_process_count++;
+    loiTruck.buffer_count = 0;
   }
-  
+ 
 
 }
 

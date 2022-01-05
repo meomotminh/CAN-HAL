@@ -62,16 +62,12 @@ enum TRIGGER_TYPE {
 
 
 
-enum INPUT_TYPE {
-    IN_TIME_STAMP,
-    IN_CAN_MESSAGE,
-}; 
-
 enum OUTPUT_TYPE {
     OUT_TIME_STAMP,  // delay: 0
     OUT_CAN_MESSAGE, // predefinded: 1
     OUT_FUNCTION,    // function: 2
-    OUT_NONE         // ignore: 3
+    OUT_IGNORE,         // ignore: 3
+    OUT_RESET,        // reset to normal: 4
 };
 
 typedef class My_Function {
@@ -100,35 +96,30 @@ public:
 typedef class Scenario {
 
 public:
-    
-    INPUT_TYPE _input_type;
+        
     OUTPUT_TYPE _output_type;
 
     // input
-    CAN_Message *_input_CAN_message;
-    uint32_t _input_timestamp;
+    CANMessage *_input_CAN_message;
+    uint32_t _start_time;
 
     // output
-    CAN_Message *_output_CAN_message;
-    uint32_t _output_timestamp; // for delay
-    My_Function *_output_function; // for manipulating parameter
-
-    uint32_t _duration;
+    CANMessage *_output_CAN_message;
+    uint32_t _delay_time; // for delay
+    My_Function *_output_function; // for manipulating parameter    
     
     Scenario* _next;
 
 
     // Constructor
-    Scenario(INPUT_TYPE inp, OUTPUT_TYPE out, CAN_Message *input_CAN, uint32_t input_time,
-    CAN_Message *output_CAN, uint32_t output_time, My_Function *output_func, uint32_t dur, Scenario* next){        
-        _input_type = inp;
+    Scenario(OUTPUT_TYPE out, CAN_Message *input_CAN, uint32_t start_time,
+    CANMessage *output_CAN, uint32_t delay_time, My_Function *output_func, Scenario* next){                
         _output_type = out;
         _input_CAN_message = input_CAN;  // Start CAN
-        _input_timestamp = input_time;   // start time
+        _start_time = start_time;   // start time
         _output_CAN_message = output_CAN; // predefined CAN
-        _output_timestamp = output_time; // delay time
+        _delay_time = delay_time; // delay time
         _output_function = output_func;  // manipulate func
-        _duration = dur;                
         _next = next;        
     }
 };
@@ -145,13 +136,19 @@ static My_Function function_linear_1(0.0, 0.0, 1.0, 1.0, 0x400001, false);
 
 #define use_Scenario true
 
-static Scenario Scenario_3(IN_TIME_STAMP, OUT_FUNCTION, NULL, 10, NULL, 0, &function_sinc, 30, NULL);
+//static Scenario Scenario_3(OUT_FUNCTION, NULL, 10, NULL, 0, &function_sinc, 30, NULL);
 
-static Scenario Scenario_2(IN_TIME_STAMP, OUT_FUNCTION, NULL, 10, NULL, 0, &function_linear_2, 30, &Scenario_3);
+//static Scenario Scenario_2(OUT_FUNCTION, NULL, 10, NULL, 0, &function_linear_2, 30, &Scenario_3);
 
-static Scenario Scenario_1(IN_TIME_STAMP, OUT_FUNCTION, NULL, 30, NULL, 0, &function_linear_1, 30, &Scenario_2);
+//static Scenario Scenario_1(OUT_FUNCTION, NULL, 30, NULL, 0, &function_linear_1, 30, &Scenario_2);
 
+static Scenario Scenario_4(OUT_RESET, NULL, 20, NULL, 0, nullptr, NULL);
 
+static Scenario Scenario_3(OUT_IGNORE, NULL, 15, NULL, 0, nullptr, &Scenario_4);
+
+static Scenario Scenario_2(OUT_RESET, NULL, 10, NULL, 0, nullptr, &Scenario_3);
+
+static Scenario Scenario_1(OUT_IGNORE, NULL, 5, NULL, 0, nullptr, &Scenario_2);
 
 
 

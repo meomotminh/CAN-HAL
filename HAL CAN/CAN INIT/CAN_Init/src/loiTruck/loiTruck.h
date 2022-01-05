@@ -533,20 +533,25 @@ typedef struct
 
 typedef enum {
     CO_SDO_ST_IDLE = 0x00U,
-    CO_SDO_ST_ABORT = 0x01U,
-    CO_SDO_ST_DOWNLOAD_LOCAL_TRANSFER = 0x10U,
+    CO_SDO_ST_ABORT = 0x01U,    
+
     CO_SDO_ST_DOWNLOAD_INITIATE_REQ = 0x11,
-    CO_SDO_ST_DOWNLOAD_INITIATE_RSP = 0x12U,
-    CO_SDO_ST_DOWNLOAD_SEGMENT_REQ = 0x13U,
-    CO_SDO_ST_DOWNLOAD_SEGMENT_RSP = 0x14U,
-    CO_SDO_ST_UPLOAD_LOCAL_TRANSFER = 0x20U,
+    CO_SDO_ST_DOWNLOAD_INITIATE_RSP = 0x12U,    
+
     CO_SDO_ST_UPLOAD_INITIATE_REQ = 0x21U,
     CO_SDO_ST_UPLOAD_INITIATE_RSP = 0x22U,
+
     CO_SDO_ST_UPLOAD_SEGMENT_REQ = 0x23U,
     CO_SDO_ST_UPLOAD_SEGMENT_RSP = 0x24U,
-
-
 } CO_SDO_state_t;
+
+typedef enum {  
+    TOOL_DEFAULT = 0x00U,
+    TOOL_DELAY = 0x01U,
+    TOOL_IGNORE = 0x02U,
+    TOOL_PREDEFINED = 0x03U,  
+    TOOL_FUNCTION = 0x04U,  
+} Tool_state_t;
 
 /**
  * SDO abort codes.
@@ -639,7 +644,9 @@ public:
     uint8_t RxData[8]; // Buffer to save RxData
     uint8_t TxData[8]; // Buffer to save TxData
     FDCAN_ErrorCountersTypeDef error_counter; // Error Counter
-    CO_SDO_state_t state; // SDO state    
+    CO_SDO_state_t state = CO_SDO_ST_IDLE; // SDO state    
+    Tool_state_t tool_state = TOOL_DEFAULT; // Tool state
+
     int dataSizeToWrite = 0;
     SDO* found_SDO;
     uint8_t SDO_toggle = 0;
@@ -672,7 +679,7 @@ public:
 /* -------------------------------- FOR TIMER ------------------------------- */
     TIM_HandleTypeDef htimer6;
     bool timer6 = false;
-    uint32_t passed_time_us = 0;
+    uint32_t passed_time_s = 0;
 
 /* ------------------------------- FOR TESTING ------------------------------ */
     bool Rx_Fifo0_full = false;
@@ -715,6 +722,7 @@ public:
 /* ------------------------------- CONSTRUCTOR ------------------------------ */
     LOITRUCK();
     void SDO_process_function();
+    void State_process_function();
     void Download_function();
     void Upload_expedited_function();
     void Upload_segmented_function();
