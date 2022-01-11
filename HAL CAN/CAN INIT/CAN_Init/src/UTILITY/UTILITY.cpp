@@ -379,7 +379,7 @@ void append_Linked_List(struct SDO** head_ref, struct SDO* temp_node){
   // change the next of last node
   last->next = temp_node;
 
-  //Serial.println("Appended!");
+  Serial.println("Appended HIer!");
   
   return;
 }
@@ -452,11 +452,12 @@ bool setup_Scenario(LOITRUCK* loiTruck){
   } 
 
   /* ----------------------- classify base on input_type ---------------------- */
+  /*
   if (loiTruck->current_Scenario->_input_type == IN_TIME_STAMP){
-    /* -------------------------- trigger by timestamp -------------------------- */
-    RTC_AlarmConfig(loiTruck);
+    
+    //RTC_AlarmConfig(loiTruck);
   }
-
+  */
 
 }
 

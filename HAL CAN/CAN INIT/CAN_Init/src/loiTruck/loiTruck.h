@@ -7,8 +7,8 @@
 
 using namespace mbed;
 
-#define SRAM_BANK_ADDR      ((uint32_t) 0x30000000)     // SRAM1 Address | 0x10000000
-#define WRITE_READ_ADDR     ((uint32_t) 0x0800)
+#define SRAM_BANK_ADDR      ((uint32_t) 0x30000000)     // SRAM1 Address | 0x30000000 - 0x3001FFFF
+#define WRITE_READ_ADDR     ((uint32_t) 0x10000)
 
 #define ID 0x12 // define ID number
 
@@ -119,17 +119,18 @@ static CANMessage expect_SDO[12] = {
 
 typedef struct SDO {
 public:    
-    uint32_t index;
-    uint32_t address;
-    uint32_t COB_ID;
+    // do nothing
+        uint32_t index = 0;
+        uint32_t address = 0;
+        uint32_t COB_ID = 0;
     
-    struct SDO* next;
-    uint8_t length;
-    bool segmented;
+        SDO *next = NULL;
+        uint8_t length = 0;
+        bool segmented = false;
 
-    uint32_t to_save;
-    String segmented_string;
-    bool SDO_default;
+        uint32_t to_save = 0;
+        String segmented_string = "";
+        bool SDO_default = false;
 
     // Constructor
     SDO(uint32_t _index, uint32_t _address, uint32_t _COB_ID, struct SDO* _next, uint8_t _length, bool _segmented, uint32_t _to_save, bool _is_default){            
@@ -159,10 +160,23 @@ public:
     
     SDO(){
         // do nothing
+        index = 0;
+        address = 0;
+        COB_ID = 0;
+        next = NULL;
+        length = 0;
+        segmented = false;
+        to_save = 0;
+        segmented_string = "";
+        SDO_default = false;
     }
 
     void set_segmented_string(String temp){
         segmented_string = temp;
+    }
+
+    void set_next(SDO* ptr){
+        next = ptr;
     }
 };
 
@@ -288,62 +302,7 @@ public:
 
 // Define Object Dictionary Elements
 
-static SDO res_4007_08(55, res_4007_08_address, 0x400708, NULL, 0x4, false, 0x01000000,true);  // uint16 type
-static SDO res_4007_02(54, res_4007_02_address, 0x400702, &res_4007_08, 0x4, false, 0x01000000,true);  // uint16 type
-static SDO res_4007_01(53, res_4007_01_address, 0x400701, &res_4007_02, 0x4, false, 0x01000000,true);  // uint8 type
-static SDO res_4007_00(52, res_4007_00_address, 0x400700, &res_4007_01, 0x4, false, 0x08000000,true);  // number of entries AC Betriebsgroessen
-static SDO res_4000_04(51, res_4000_04_address, 0x400004, &res_4007_00, 0x4, false, 0x04000000,true);  // ist drehzahl 16 bit
-static SDO res_4000_03(50, res_4000_03_address, 0x400003, &res_4000_04, 0x4, false, 0x02000000,true);  // ramp down
-static SDO res_4000_02(49, res_4000_02_address, 0x400002, &res_4000_03, 0x4, false, 0x02000000,true);  // ramp up
-static SDO res_4000_01(48, res_4000_01_address, 0x400001, &res_4000_02, 0x4, false, 0x01000000,true);  // soll drehzahl
-static SDO res_2400_07(47, res_2400_07_address, 0x240007, &res_4000_01, 0x4, false, 0x00000000,true);  
-static SDO res_2401_07(46, res_2401_07_address, 0x240107, &res_2400_07, 0x4, false, 0x00000000,true);
-static SDO res_2402_07(45, res_2402_07_address, 0x240207, &res_2401_07, 0x4, false, 0x00000000,true);
-static SDO res_2403_04(44, res_2403_04_address, 0x240304, &res_2402_07, 0x4, false, 0x00000000,true);
-static SDO res_2404_04(43, res_2404_04_address, 0x240404, &res_2403_04, 0x4, false, 0x00000000,true);
-static SDO res_2405_04(42, res_2405_04_address, 0x240504, &res_2404_04, 0x4, false, 0x00000000,true);
-static SDO res_2403_03(41, res_2403_03_address, 0x240303, &res_2405_04, 0x4, false, 0x00000000,true);
-static SDO res_2404_03(40, res_2404_03_address, 0x240403, &res_2403_03, 0x4, false, 0x00000000,true);
-static SDO res_2405_03(39, res_2405_03_address, 0x240503, &res_2404_03, 0x4, false, 0x00000000,true);
-static SDO res_2404_07(38, res_2404_07_address, 0x240407, &res_2405_03, 0x4, false, 0x00000000,true);
-static SDO res_2403_07(37, res_2403_07_address, 0x240307, &res_2404_07, 0x4, false, 0x00000000,true);
-static SDO res_2403_02(36, res_2403_02_address, 0x240302, &res_2403_07, 0x4, false, 0x00000000,true);
-static SDO res_2401_02(35, res_2401_02_address, 0x240102, &res_2403_02, 0x4, false, 0x00000000,true);
-static SDO res_2404_02(34, res_2404_02_address, 0x240402, &res_2401_02, 0x4, false, 0x00000000,true);
-static SDO res_2460_02(33, res_2460_02_address, 0x246002, &res_2404_02, 0x4, false, 0x00000000,true);
-static SDO res_2405_07(32, res_2405_07_address, 0x240507, &res_2460_02, 0x4, false, 0x00000000,true);
-static SDO res_2402_02(31, res_2402_02_address, 0x240202, &res_2405_07, 0x4, false, 0x00000000,true);
-static SDO res_2405_02(30, res_2405_02_address, 0x240502, &res_2402_02, 0x4, false, 0x00000000,true);
-static SDO res_2411_02(29, res_2411_02_address, 0x241102, &res_2405_02, 0x4, false, 0x00000000,true);
-static SDO res_2001_03(28, res_2001_03_address, 0x200103, &res_2411_02, 0x4, false, 0x00000000,true);
-static SDO res_2001_02(27, res_2001_02_address, 0x200102, &res_2001_03, 0x4, false, 0x00000000,true);
-static SDO res_2461_02(26, res_2461_02_address, 0x246102, &res_2001_02, 0x4, false, 0x00000000,true);
-static SDO res_2414_02(25, res_2414_02_address, 0x241402, &res_2461_02, 0x4, false, 0x00000000,true);
-static SDO res_2923_02(24, res_2923_02_address, 0x292302, &res_2414_02, 0x4, false, 0x00000000,true);
-static SDO res_2413_02(23, res_2413_02_address, 0x241302, &res_2923_02, 0x4, false, 0x00000000,true);
-static SDO res_2020_01(22, res_2020_01_address, 0x202001, &res_2413_02, 0x4, false, 0x49010000,true);
-static SDO res_2002_01(21, res_2002_01_address, 0x200201, &res_2020_01, 0x4, false, 0x8e155301,true); 
-static SDO res_2106_06(20, res_2106_06_address, 0x210606, &res_2002_01, 0x4, false, 0x82000000,true);
-static SDO res_2104_02(19, res_2104_02_address, 0x210402, &res_2106_06, 0x4, false, 0x82000000,true);
-static SDO res_2103_02(18, res_2103_02_address, 0x210302, &res_2104_02, 0x4, false, 0x96000000,true);
-static SDO res_2103_06(17, res_2103_06_address, 0x210306, &res_2103_02, 0x4, false, 0x96000000,true);
-static SDO res_2201_06(16, res_2201_06_address, 0x220106, &res_2103_06, 0x4, false, 0x19000000,true);
-static SDO res_2201_02(15, res_2201_02_address, 0x220102, &res_2201_06, 0x4, false, 0x19000000,true);
-static SDO res_2101_06(14, res_2101_06_address, 0x210106, &res_2201_02, 0x4, false, 0x32000000,true);
-static SDO res_2101_02(13, res_2101_02_address, 0x210102, &res_2101_06, 0x4, false, 0x32000000,true);
-static SDO res_2001_01(12, res_2001_01_address, 0x200101, &res_2101_02, 0x4, false, 0x05000000,true);
-static SDO res_2200_06(11, res_2200_06_address, 0x220006, &res_2001_01, 0x4, false, 0x0F000000,true);
-static SDO res_2200_02(10, res_2200_02_address, 0x220002, &res_2200_06, 0x4, false, 0x0F000000,true);
-static SDO res_2100_06(9, res_2100_06_address,  0x210006, &res_2200_02, 0x4, false, 0x64000000,true);
-static SDO res_2102_06(8, res_2102_06_address,  0x210206, &res_2100_06, 0x4, false, 0x32000000,true);
-static SDO res_2102_02(7, res_2102_02_address,  0x210202, &res_2102_06, 0x4, false, 0x32000000,true);
-static SDO res_2100_02(6, res_2100_02_address,  0x210002, &res_2102_02, 0x4, false, 0x2E740000,true);
-static SDO res_2020_02(5, res_2020_02_address,  0x202002, &res_2100_02, 0x4, false, 0x2E740000,true);
-static SDO res_2002_02(4, res_2002_02_address,  0x200202, &res_2020_02, 0x4, false, 0x00000002,true);
-static SDO res_2000_03(3, res_2000_03_address,  0x200003, &res_2002_02, 0x4, false, 0x01682251,true);
-static SDO res_2000_01(2, res_2000_01_address,  0x200001, &res_2000_03, 0x4, false, 0x62498551,true);
-static SDO res_2000_00(1,  res_2000_00_address, 0x200000, &res_2000_01, 0x4, false, 0x09000000,true);
-static SDO first_SDO(0, first_SDO_address, 0x200204, &res_2000_00, 0x20, true, 0, true);
+
 
 
 #define Truck_ID            "ECE225        2015" // must be even number of char
@@ -652,10 +611,16 @@ public:
     uint8_t SDO_toggle = 0;
     uint8_t segment_remain = 0;
     bool new_SDO_received = false;
-    char buffer_string[100][40];
+    char buffer_string[100][40];    
     int buffer_count = 0;
+    
+    bool to_add = false;
+    uint32_t to_add_COB_ID = 0;
+    uint32_t to_add_value = 0;
+
     CanMode my_can_mode;
     int last_linked_list_index = 0;
+
 
 
 /* -------------------------------- FOR SRAM -------------------------------- */
@@ -667,6 +632,7 @@ public:
     uint16_t uwIndex;
     uint32_t Hash_Int = 0x00000F0F;
     SDO* my_SDO_List = NULL;
+    SDO* my_last_SDO_element = NULL;
 
 /* --------------------------------- FOR RTC -------------------------------- */
     RTC_HandleTypeDef hrtc;
@@ -695,6 +661,9 @@ public:
     //uint16_t test_worst_case[100];
     int test_worst_case_count = 0;
     int test_SDO_process_count = 0;
+    //uint32_t DWT_start = 0;
+    uint32_t DWT_stop = 0;
+    int sine_rad = 0;
 
 /* ------------------------------ FOR SEGMENTED ----------------------------- */
     uint8_t segment_count = 0;
@@ -717,6 +686,9 @@ public:
     int sample_rate = 0;
     int last_millis = 0;
     uint8_t buffer_index = 0;
+    bool end_loop = false;
+    bool value_changed = false;
+    uint32_t temp_value_scenario = 0;
 
 
 /* ------------------------------- CONSTRUCTOR ------------------------------ */
@@ -727,12 +699,14 @@ public:
     void Upload_expedited_function();
     void Upload_segmented_function();
     void CAN_send();
+    void my_can_write(can_t *obj, CANMessage msg); // for fault test
     uint16_t prepare_ID();
     struct SDO* find_value(struct SDO** head_ref, uint32_t value);
     bool compare_with_expect();
     //void append_Linked_List(struct SDO** head_ref, struct SDO* temp_node);                                    
     void append_Linked_List(struct SDO** head_ref, uint32_t _COB_ID, uint32_t value);
     void display_Linked_List();
+    void init_SDO_list();
 };
 
 #endif

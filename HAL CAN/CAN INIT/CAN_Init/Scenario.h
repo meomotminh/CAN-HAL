@@ -1,65 +1,36 @@
-/**
-  * @brief  FDCAN Trigger structure definition
-  */
-/*
-typedef struct
-{
-  uint32_t TriggerIndex;  !< Specifies the trigger which will be configured.
-                               This parameter must be a number between 0 and 63                                 
-
-  uint32_t TimeMark;      !< Specifies the cycle time for which the trigger becomes active.
-                               This parameter must be a number between 0 and 0xFFFF                             
-
-  uint32_t RepeatFactor;  !< Specifies the trigger repeat factor.
-                               This parameter can be a value of @ref FDCAN_TT_Repeat_Factor                     
-
-  uint32_t StartCycle;    !< Specifies the index of the first cycle in which the trigger becomes active.
-                               This parameter is ignored if RepeatFactor is set to FDCAN_TT_REPEAT_EVERY_CYCLE.
-                               This parameter must be a number between 0 and RepeatFactor                       
-
-  uint32_t TmEventInt;    !< Enable or disable the internal time mark event.
-                               If enabled, FDCAN_TT_FLAG_TRIG_TIME_MARK flag is set when trigger memory element
-                               becomes active.
-                               This parameter can be a value of @ref FDCAN_TT_Time_Mark_Event_Internal          
-
-  uint32_t TmEventExt;    !< Enable or disable the external time mark event.
-                               If enabled, and if TTOCN.TTIE is set, a pulse is generated at fdcan1_tmp when
-                               trigger memory element becomes active.
-                               This parameter can be a value of @ref FDCAN_TT_Time_Mark_Event_External          
-
-  uint32_t TriggerType;   !< Specifies the trigger type.
-                               This parameter can be a value of @ref FDCAN_TT_Trigger_Type                      
-
-  uint32_t FilterType;    !< Specifies the filter identifier type.
-                               This parameter can be a value of @ref FDCAN_id_type                              
-
-  uint32_t TxBufferIndex; !< Specifies the index of the Tx buffer for which the trigger is valid.
-                               This parameter can be a value of @ref FDCAN_Tx_location.
-                               This parameter is taken in consideration only if the trigger is configured for
-                               transmission.                                                                    
-
-  uint32_t FilterIndex;   !< Specifies the filter for which the trigger is valid.
-                               This parameter is taken in consideration only if the trigger is configured for
-                               reception.
-                               This parameter must be a number between:
-                                - 0 and 127, if FilterType is FDCAN_STANDARD_ID
-                                - 0 and 63, if FilterType is FDCAN_EXTENDED_ID                                  
-
-} FDCAN_TriggerTypeDef;
-*/
-
 #ifndef SCENARIO_H
 #define SCENARIO_H
 
 #include "mbed.h"
 
 
+using namespace mbed;
 
-enum TRIGGER_TYPE {
-    MY_TIME_TRIGGER,
-    MY_EVENT_TRIGGER
+
+// define test_SDO
+const  uint8_t test_scenario_0[] = {0x40,0x02,0x20,0x4,0x0,0x0,0x0,0x0};
+const  uint8_t test_scenario_1[] = {0x60,0x02,0x20,0x4,0x0,0x0,0x0,0x0};
+const  uint8_t test_scenario_2[] = {0x70,0x02,0x20,0x4,0x0,0x0,0x0,0x0};
+const  uint8_t test_scenario_3[] = {0x40,0x04,0x24,0x02,0x0,0x0,0x0,0x0};
+const  uint8_t test_scenario_4[] = {0x2B,0x04,0x24,0x02,0x04,0x04,0x0,0x0};
+const  uint8_t test_scenario_5[] = {0x40,0x04,0x24,0x01,0x0,0x00,0x0,0x0};
+const  uint8_t test_scenario_6[] = {0x2F,0x42,0x53,0x02,0x02,0x00,0x0,0x0};
+const  uint8_t test_scenario_7[] = {0x2b,0x04,0x24,0x01,0x89,0x29,0x00,0x00};
+const  uint8_t test_scenario_8[] = {0x40,0x03,0x24,0x02,0x00,0x00,0x00,0x00};
+static CANMessage fault[12] = {
+                    CANMessage(0x601,test_scenario_0,8),//0 SDO ident string
+                    CANMessage(0x601,test_scenario_1,8),//1 SDO ident string 
+                    CANMessage(0x601,test_scenario_2,8),//2 SDO ident string
+                    CANMessage(0x601,test_scenario_1,8),//3 SDO ident string                   
+                    CANMessage(0x601,test_scenario_2,8),//4 SDO ident string                   
+                    CANMessage(0x601,test_scenario_1,8),//5 SDO ident string
+                    CANMessage(0x641,test_scenario_3,8),//6 SDO 240402
+                    CANMessage(0x641,test_scenario_4,8),//7 Download SDO 240402
+                    CANMessage(0x641,test_scenario_3,8),//8 SDO 240402
+                    CANMessage(0x641,test_scenario_5,8),//9 SDO 240401
+                    CANMessage(0x641,test_scenario_7,8),//10 Download SDO 240401
+                    CANMessage(0x641,test_scenario_5,8),//11 SDO 240401                    
 };
-
 
 
 enum OUTPUT_TYPE {
@@ -77,7 +48,7 @@ public:
     double _c;
     double _d;
     uint32_t _SDO_value;
-    bool _sin;
+    bool _sin;    
 
     // constructor
     My_Function(double a, double b, double c, double d, uint32_t value, bool sin){
@@ -86,7 +57,16 @@ public:
       _c = c;
       _d = d;
       _SDO_value = value;
-      _sin = sin;
+      _sin = sin;      
+    }
+
+    uint32_t output(int val){
+      if (this->_sin){
+        return (sin(val*3*2)+1)*1000;
+      } else {
+        return int(_a*_a*_a*val + _b*_b*val + _c*val +_d);
+      }
+      
     }
 
     My_Function(){}
@@ -112,7 +92,7 @@ public:
 
 
     // Constructor
-    Scenario(OUTPUT_TYPE out, CAN_Message *input_CAN, uint32_t start_time,
+    Scenario(OUTPUT_TYPE out, CANMessage *input_CAN, uint32_t start_time,
     CANMessage *output_CAN, uint32_t delay_time, My_Function *output_func, Scenario* next){                
         _output_type = out;
         _input_CAN_message = input_CAN;  // Start CAN
@@ -125,7 +105,7 @@ public:
 };
 
 
-static My_Function function_sinc(0.0, 0.0, 10.0, 20.0, 0x400001, true);
+static My_Function function_sinc(0.0, 0.0, 0, 0, 0x400001, true);
 
 static My_Function function_linear_2(0.0, 0.0, -2.0, 40.0, 0x400001, false);
 
@@ -134,7 +114,7 @@ static My_Function function_linear_1(0.0, 0.0, 1.0, 1.0, 0x400001, false);
 
 /* ---------------------------- DEFINE SCRENARIO ---------------------------- */
 
-#define use_Scenario true
+#define use_Scenario false
 
 //static Scenario Scenario_3(OUT_FUNCTION, NULL, 10, NULL, 0, &function_sinc, 30, NULL);
 
@@ -142,16 +122,27 @@ static My_Function function_linear_1(0.0, 0.0, 1.0, 1.0, 0x400001, false);
 
 //static Scenario Scenario_1(OUT_FUNCTION, NULL, 30, NULL, 0, &function_linear_1, 30, &Scenario_2);
 
-static Scenario Scenario_4(OUT_RESET, NULL, 20, NULL, 0, nullptr, NULL);
+//static Scenario Scenario_4(OUT_RESET, NULL, 20, NULL, 0, nullptr, NULL);
 
-static Scenario Scenario_3(OUT_IGNORE, NULL, 15, NULL, 0, nullptr, &Scenario_4);
+//static Scenario Scenario_3(OUT_TIME_STAMP, NULL, 15, NULL, 0, nullptr, &Scenario_4);
 
-static Scenario Scenario_2(OUT_RESET, NULL, 10, NULL, 0, nullptr, &Scenario_3);
+//static Scenario Scenario_2(OUT_RESET, NULL, 10, NULL, 0, nullptr, &Scenario_3);
 
-static Scenario Scenario_1(OUT_IGNORE, NULL, 5, NULL, 0, nullptr, &Scenario_2);
+//static Scenario Scenario_1(OUT_IGNORE, NULL, 5, NULL, 0, nullptr, &Scenario_2);
 
 
+// --------------test scenario 1-------------
+//static Scenario Scenario_4(OUT_RESET, &fault[0], 20, NULL, 0, nullptr, nullptr);
 
+//static Scenario Scenario_3(OUT_IGNORE, &fault[0], 15, NULL, 0, nullptr, &Scenario_4);
+
+//static Scenario Scenario_2(OUT_TIME_STAMP, &fault[0], 10, NULL, 100, nullptr, &Scenario_3);
+
+//static Scenario Scenario_1(OUT_TIME_STAMP, &fault[0], 5, NULL, 0, nullptr, &Scenario_2);
+
+
+// --------------test scenario function-----------
+static Scenario Scenario_1(OUT_FUNCTION, nullptr, 5, NULL, 0, &function_sinc, nullptr);
 
 
 #endif

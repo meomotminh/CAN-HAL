@@ -4,44 +4,18 @@
 #include "SRAM.h"
 
 
+
 /* ------------------------ Write SDO object to SRAM ------------------------ */
-uint8_t write_SDO_to_SRAM(LOITRUCK* loiTruck){
-  loiTruck->uwIndex = 0;
 
-  SDO* temp = &first_SDO;  
-  // create SDO object and add to linked list
-  String truck_id_temp = String(Truck_ID);  
-
-  while (truck_id_temp.length() < 32){
-    truck_id_temp += " ";
-  } 
-  temp->set_segmented_string(truck_id_temp);
-  
-  //Serial.println(temp->segmented_string);
-
-  append_Linked_List(&loiTruck->my_SDO_List, &first_SDO);
-
-  //Serial.println(first_SDO.segmented_string);
-
-  while (temp->next != NULL){
-    
-    temp = temp->next;    
-    *(__IO uint32_t *)(temp->address) = temp->to_save;
-  }
-
-  loiTruck->last_linked_list_index = 55;
-  
-
-  return 1;
-}
 
 /* --------------------- Init SRAM to be able to access --------------------- */
 void init_SDO_object(LOITRUCK* loiTruck){
   //uint32_t *temp = (uint32_t *)(BASE_ADD + 200000);
   //HAL_SRAM_Write_16b();
+  
   loiTruck->hsram.Instance = FMC_NORSRAM_DEVICE; // Base address of : (up to 512KB) system data RAM accessible over over AXI   
   loiTruck->hsram.Extended = FMC_NORSRAM_EXTENDED_DEVICE;
-  /* at stm32h7xx_ll_fmc.h */
+  
   loiTruck->hsram.Init.NSBank = FMC_NORSRAM_BANK1;      
   loiTruck->hsram.Init.DataAddressMux = FMC_DATA_ADDRESS_MUX_DISABLE;
   loiTruck->hsram.Init.MemoryType = FMC_MEMORY_TYPE_SRAM;
@@ -72,9 +46,11 @@ void init_SDO_object(LOITRUCK* loiTruck){
   } else {
     ////Serial.println("HAL_SRAM_Init OK");
   }
+  
 
 
-  write_SDO_to_SRAM(loiTruck);
+
+  //write_SDO_to_SRAM(loiTruck);
 
 
 }

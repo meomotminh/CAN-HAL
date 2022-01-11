@@ -38,6 +38,7 @@ char buffer[40];
 
 
 
+
 /* -------------------------------------------------------------------------- */
 /*                                 CODE FOR M7                                */
 /* -------------------------------------------------------------------------- */
@@ -52,7 +53,7 @@ char buffer[40];
 
 
 Thread send_fake_heart_beat(osPriorityNormal);
-Thread SDO_process(osPriorityHigh);
+Thread manipulate_process(osPriorityNormal);
 
 LOITRUCK loiTruck = LOITRUCK(); // only loiTruck on M7
 
@@ -68,12 +69,26 @@ void send_fake(){
     }    
 }
 
-void SDO_process_thread(){
+void manipulate_function(){
   while (true){
-    if (loiTruck.new_SDO_received){
-      loiTruck.SDO_process_function();
-      loiTruck.new_SDO_received = true;
+      if (loiTruck.tool_state == TOOL_FUNCTION){       
+        loiTruck.sine_rad++;
+        if (loiTruck.sine_rad >= 360){
+           loiTruck.sine_rad = 0;
+        }
+        loiTruck.temp_value_scenario = loiTruck.current_Scenario->_output_function->output(loiTruck.sine_rad % 360);   
+  
+        loiTruck.found_SDO = loiTruck.find_value(&loiTruck.my_SDO_List, loiTruck.current_Scenario->_output_function->_SDO_value);
+        // default SDO element
+        if (loiTruck.found_SDO != NULL){
+          *(__IO uint32_t *)(loiTruck.found_SDO->address) = loiTruck.temp_value_scenario;
+        } else {
+          loiTruck.found_SDO->to_save = loiTruck.temp_value_scenario;
+        }
+
+      loiTruck.value_changed = true;    
     }
+    ThisThread::sleep_for(100);
   }
 }
 
@@ -184,44 +199,24 @@ int my_can_filter(can_t *obj, uint32_t id, uint32_t mask, CANFormat format, int3
     return 0;
   }
   
-/* ----- Configure global filter: Filter all remote frames with STD and ----- */
-/* -------- EXT ID Reject non matching frames with STD ID and EXT ID -------- */
-  /*  
-  if (HAL_FDCAN_ConfigGlobalFilter(&loiTruck->my_can.CanHandle, FDCAN_ACCEPT_IN_RX_FIFO0, FDCAN_ACCEPT_IN_RX_FIFO0, FDCAN_FILTER_REMOTE, FDCAN_FILTER_REMOTE) != HAL_OK){
-    //Error_Handler();
-    //Serial.println("HAL_FDCAN_ConfigGlobalFilter error!");
-  } else {
-    //Serial.println("HAL_FDCAN_ConfigGlobalFilter OK!");
-  }
-
-  
-  if (HAL_FDCAN_ConfigFilter(&obj->CanHandle, &sFilterConfig) != HAL_OK){
-    //Serial.println("HAL_FDCAN_ConfigFilter error");
-  } else {
-    //Serial.println("HAL_FDCAN_ConfigFilter OK");
-  }
-  */
-
   /* ---------------------------- Enable Interrupt ---------------------------- */
    
   if (HAL_FDCAN_ActivateNotification(&loiTruck->my_can.CanHandle, FDCAN_IT_RX_FIFO0_NEW_MESSAGE | FDCAN_IT_TIMEOUT_OCCURRED | FDCAN_IT_TIMESTAMP_WRAPAROUND | FDCAN_IT_TX_COMPLETE, 0xFFFF) != HAL_OK){
-    //Error_Handler();
-    //Serial.println("HAL_FDCAN_ActivateNotification error!");
+    
   } else {
-    //Serial.println("HAL_FDCAN_ActivateNotification OK!");
+    
   }
 
 
   /* --------------------------- FINALLY START FDCAN -------------------------- */
 
-  if (HAL_FDCAN_Start(&obj->CanHandle) != HAL_OK){
-    //Serial.println("HAL_FDCAN_Start error\n");
-  } else {
-    //Serial.println("HAL_FDCAN_Start success!");
+  if (HAL_FDCAN_Start(&obj->CanHandle) != HAL_OK){    
+  } else {    
   }
   
   /* -------------------------- FDCAN1 interrupt Init ------------------------- */
   NVIC_SetVector(FDCAN1_IT0_IRQn, (uint32_t)&FDCAN1_IT0_IRQHandler);
+  HAL_NVIC_SetPriority(FDCAN1_IT0_IRQn, 1, 1);
   NVIC_EnableIRQ(FDCAN1_IT0_IRQn);
 
 
@@ -251,14 +246,19 @@ void FDCAN1_IT0_IRQHandler(void){
 
 void HAL_FDCAN_TxBufferCompleteCallback(FDCAN_HandleTypeDef *hfdcan, uint32_t BufferIndexes){
   loiTruck.sendMsg = true;
-  
-  
 }
 
 
 void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs){  
     // Do SDO process
-   // loiTruck.SDO_process_function();     
+  //sprintf(loiTruck.buffer_string[(loiTruck.buffer_count++) % 100],"\t----------------------\n");
+  //sprintf(loiTruck.buffer_string[(loiTruck.buffer_count++) % 100],"\tStart SDO Process\n");
+     
+  loiTruck.SDO_process_function();  
+  
+  //sprintf(loiTruck.buffer_string[(loiTruck.buffer_count++) % 100],"\tStop SDO Process\n");
+  //sprintf(loiTruck.buffer_string[(loiTruck.buffer_count++) % 100],"\t----------------------\n");
+  
 }
 
 void HAL_FDCAN_TimeoutOccurredCallback(FDCAN_HandleTypeDef *hfdcan){
@@ -267,10 +267,7 @@ void HAL_FDCAN_TimeoutOccurredCallback(FDCAN_HandleTypeDef *hfdcan){
 
 
 void HAL_FDCAN_TimestampWraparoundCallback(FDCAN_HandleTypeDef *hfdcan){
-   loiTruck.timestamp = true;           
-
-   
-          
+   loiTruck.timestamp = true;                        
 }
 
 
@@ -306,7 +303,7 @@ void TIMER6_Init(LOITRUCK* loiTruck){
   ////Serial.print("TIM6 Clock: "); //Serial.println(uwTimClock);
 
   /* -- compute the prescaler value to have TIM6 counter clock equal to 1 MHz - */
-  uwPrescalerValue = (uint32_t) ((uwTimClock / 1000000U) - 1U);
+  uwPrescalerValue = (uint32_t) ((uwTimClock / 4000U) - 1U);
 
   /* ----------------------------- initialize TIM6 ---------------------------- */
   loiTruck->htimer6.Instance = TIM6; // Basic Timer
@@ -318,15 +315,15 @@ void TIMER6_Init(LOITRUCK* loiTruck){
     ClockDivision = 0
 
   */
-  loiTruck->htimer6.Init.Period = (1000000U / 1000U) - 1;
+  loiTruck->htimer6.Init.Period = 4000U - 1;
   loiTruck->htimer6.Init.Prescaler = uwPrescalerValue;
   loiTruck->htimer6.Init.CounterMode = TIM_COUNTERMODE_UP;
   
   /* ----------------- initialize the TIM low level resources ----------------- */
   if (HAL_TIM_Base_Init(&loiTruck->htimer6) != HAL_OK){
-    ////Serial.println("HAL_TIM_Base_Init error!");
+    
   } else {    
-    ////Serial.println("HAL_TIM_Base_Init OK!");
+    
   }
 
   
@@ -338,7 +335,7 @@ void TIMER6_Init(LOITRUCK* loiTruck){
   }
 
   NVIC_SetVector(TIM6_DAC_IRQn, (uint32_t)&TIM6_DAC_IRQHandler);
-  HAL_NVIC_SetPriority(TIM6_DAC_IRQn, 14U, 0U);
+  HAL_NVIC_SetPriority(TIM6_DAC_IRQn, 2U, 3U);
   // enable TIMx global interrupt
   HAL_NVIC_EnableIRQ(TIM6_DAC_IRQn);
 
@@ -352,10 +349,16 @@ void TIM6_DAC_IRQHandler(void){
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
   
   /* ----------------------- only trigger when alarm set ---------------------- */
-  loiTruck.passed_time_s++;
-  sprintf(loiTruck.buffer_string[(loiTruck.buffer_count++) % 100],"time passed(s):%d\n:",loiTruck.passed_time_s);         
   
-  loiTruck.State_process_function();
+  loiTruck.passed_time_s++;
+  //sprintf(loiTruck.buffer_string[(loiTruck.buffer_count++) % 100],"\t\t----------------------\n");
+  //sprintf(loiTruck.buffer_string[(loiTruck.buffer_count++) % 100],"\t\tStart State Process at %d(s)\n",loiTruck.passed_time_s);
+  //sprintf(loiTruck.buffer_string[(loiTruck.buffer_count++) % 100],"Time %d(s)\n",loiTruck.passed_time_s);      
+      
+  loiTruck.State_process_function();  
+  
+  //sprintf(loiTruck.buffer_string[(loiTruck.buffer_count++) % 100],"\t\tStop State Process\n");
+  //sprintf(loiTruck.buffer_string[(loiTruck.buffer_count++) % 100],"\t\t----------------------\n");
   
 }
 
@@ -432,6 +435,8 @@ void setup() {
     /* ------------------------ Low level initialization ------------------------ */
     HAL_Init();
 
+    HAL_NVIC_SetPriorityGrouping(NVIC_PRIORITYGROUP_2);
+    
     // Start DWT Timer
     DWT_timer_start();
 
@@ -440,6 +445,7 @@ void setup() {
 
     /* ----------------------------- Init SDO object ---------------------------- */
     init_SDO_object(&loiTruck);
+    loiTruck.init_SDO_list();
     
 
     /* --------------------- Display SDO object linked list --------------------- */
@@ -453,17 +459,18 @@ void setup() {
     Set_CAN_Pin(&loiTruck.my_can, PB_8, PH_13, 250000);  
 
     /* ----------------------- Set external Loop Back mode ---------------------- */
-    my_can_mode(&loiTruck.my_can, MODE_TEST_LOCAL);
-    loiTruck.my_can_mode = MODE_TEST_LOCAL;
+    my_can_mode(&loiTruck.my_can, MODE_NORMAL);
+    loiTruck.my_can_mode = MODE_NORMAL;
 
     /* -------------------------- set filter and start -------------------------- */
     //int my_can_filter(can_t *obj, uint32_t id, uint32_t mask, CANFormat format, int32_t handle)
     my_can_filter(&loiTruck.my_can, 0x641, 0x7FF, CANStandard, 0, &loiTruck);
 
     /* ------------------------------- RTC Config ------------------------------- */
-    HAL_RTC_MspInit();
-    RTC_Init(&loiTruck);    
-    RTC_CalendarConfig(&loiTruck);
+    //HAL_RTC_MspInit();
+    //RTC_Init(&loiTruck);    
+    //RTC_CalendarConfig(&loiTruck);
+    TIMER6_Init(&loiTruck);
     
     
     
@@ -483,42 +490,92 @@ void setup() {
     //Serial.println("|           Start loop              |");
     //Serial.println("-------------------------------------");
     */
-    
-    
-    /* -------------------------------- Scenario -------------------------------- */
-    if (find_Scenario(&loiTruck)){
-      //Serial.println("M7: Found First Scenario");
-      if (RTC_AlarmConfig(&loiTruck)){ // set alarm for start of scenario
-        //Serial.println("M7: Alarm Config OK");
-      } else {
-        //Serial.println("M7: Alarm Config error");
-      }                    
-    }
 
-    
-    // Start Thread
-    //send_fake_heart_beat.start(send_fake); // Start an independent thread to send fake heart beat
-    //SDO_process.start(SDO_process_thread);   
+    send_fake_heart_beat.start(send_fake);
+    manipulate_process.start(manipulate_function);
+             
 }
 
 
 void loop() {
   /* --------------- put your main code here, to run repeatedly: -------------- */
   
-  /*
+  /* FOR test SDO process
   while (loiTruck.test_SDO_process_count < 11){    
     int passed_cycle = test_SDO_process(&loiTruck);
     sprintf(loiTruck.buffer_string[(loiTruck.buffer_count++) % 100], "Passed Time:%.4f\n",(passed_cycle/400e6));        
   }
+  
+
+  if (loiTruck.triggered || loiTruck.to_add || (loiTruck.tool_state == TOOL_FUNCTION)){
+      //sprintf(loiTruck.buffer_string[(loiTruck.buffer_count++) % 100],"----------------------\n");
+      //sprintf(loiTruck.buffer_string[(loiTruck.buffer_count++) % 100],"Start Main Loop\n");
+      //loiTruck.end_loop = true;
+  }
+  
+  //send random CAN message
+  if (loiTruck.triggered){
+     
+     loiTruck.my_can_write(&loiTruck.my_can, fault[random(0,11)]);          
+     loiTruck.triggered = false;
+    
+     
+  }  
   */
- 
-  if (loiTruck.buffer_count >= 100){
+
+  /*
+   * FOR TEST worst case
+   */
+ /*  
+  while (loiTruck.test_worst_case_count < 1000){
+    loiTruck.test_worst_case_count++;
+    //Serial.println(loiTruck.test_worst_case_count);
+    //Serial.println(test_worst_case(&loiTruck));
+    sprintf(buffer, "%d.%d",(55+loiTruck.test_worst_case_count),test_worst_case(&loiTruck));    
+    Serial.println(buffer);
+  }
+  
+  if (loiTruck.test_worst_case_count == 1000){
+    loiTruck.display_Linked_List();
+    loiTruck.test_worst_case_count++;
+  }*/
+    
+
+  
+  if (loiTruck.to_add){    
+    
+    loiTruck.append_Linked_List(&loiTruck.my_SDO_List, loiTruck.to_add_COB_ID,loiTruck.to_add_value);
+    //loiTruck.display_Linked_List();
+    loiTruck.to_add = false;
+    
+  }
+
+  
+  /* FOR SCENARIO test
+  if (loiTruck.value_changed){   
+                      
+           
+      Serial.println(loiTruck.temp_value_scenario);         
+      loiTruck.value_changed = false;
+    
+  }
+  */
+
+  // FOR print out
+  if (loiTruck.buffer_count >= 2){
+    
     for (int i = 0; i<loiTruck.buffer_count; i++){
       Serial.print(loiTruck.buffer_string[i]);
     }       
     loiTruck.buffer_count = 0;
   }
- 
+  /*
+  if (loiTruck.end_loop){
+      //sprintf(loiTruck.buffer_string[(loiTruck.buffer_count++) % 100],"Stop Main Loop\n");
+      //sprintf(loiTruck.buffer_string[(loiTruck.buffer_count++) % 100],"----------------------\n");
+      loiTruck.end_loop = false;
+  }
+  */
 
 }
 
