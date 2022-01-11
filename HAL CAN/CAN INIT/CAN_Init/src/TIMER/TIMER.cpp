@@ -69,10 +69,10 @@ bool DWT_timer_start()
 bool DWT_timer_stop()
 {
     // read out DWT counter
-    loiTruck.passed_time_us = (DWT->CYCCNT * 25 / 10000);
+    //loiTruck.passed_time_s = (DWT->CYCCNT * 25 / 10000);
 
     // Disable Clock cycle counter
-    DWT->CTRL &= ~DWT_CTRL_CYCCNTENA_Msk;    
+    //DWT->CTRL &= ~DWT_CTRL_CYCCNTENA_Msk;    
 }
 
 
