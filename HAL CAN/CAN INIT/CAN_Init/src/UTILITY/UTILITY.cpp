@@ -30,10 +30,10 @@ static uint32_t BufferCmp32b(uint32_t* pBuffer1, uint32_t* pBuffer2, uint16_t Bu
 
 
 /* ------------ check if it is in concerning range 0x601 -> 0x67F ----------- */
-bool check_COB_ID_range(uint32_t COB_ID)
+bool check_Object_index_range(uint32_t Object_index)
 {    
     ////Serial.println(TxHeader.Identifier, HEX);
-    if ((COB_ID) >= 0x601 && (COB_ID <= 0x67F))
+    if ((Object_index) >= 0x601 && (Object_index <= 0x67F))
     {
         return true;
     } else return false;
@@ -158,7 +158,7 @@ uint8_t read_parameter(LOITRUCK* loiTruck){
   ////Serial.println(tmp, HEX);
   
   ////Serial.println(found->value, HEX);
-  if (check_COB_ID_range(loiTruck->RxHeader.Identifier)){
+  if (check_Object_index_range(loiTruck->RxHeader.Identifier)){
     reply = 1;
     ////Serial.println("In Range");
     if (found == NULL){
@@ -346,8 +346,8 @@ struct SDO* find_value(struct SDO** head_ref, uint32_t value){
     
   // traverse until the end
   while (last->next != NULL){
-    Serial.println(last->COB_ID,HEX);
-    if (last->COB_ID == value) 
+    Serial.println(last->Object_index,HEX);
+    if (last->Object_index == value) 
       { 
         break;
       } else {
@@ -355,7 +355,7 @@ struct SDO* find_value(struct SDO** head_ref, uint32_t value){
       }    
   }
 
-  if (last->COB_ID == value){
+  if (last->Object_index == value){
     return last;
   } else return NULL;
 
@@ -396,7 +396,7 @@ void display_Linked_List(LOITRUCK* loiTruck){
       Serial.println("****************");
       Serial.print("SDO index:"); Serial.println(tmp->index);
       Serial.print("SDO address:"); Serial.println(tmp->address, HEX);
-      Serial.print("SDO COB_ID:"); Serial.println(tmp->COB_ID, HEX);
+      Serial.print("SDO Object_index:"); Serial.println(tmp->Object_index, HEX);
       Serial.print("segmented_string:"); Serial.println(tmp->segmented_string);
       tmp = tmp->next;
     }

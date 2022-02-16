@@ -6,7 +6,7 @@
 #include "../UTILITY/UTILITY.h"
 #include "../FDCAN/FDCAN.h"
 
-int test_SDO_process(LOITRUCK *loiTruck);
+void test_SDO_process(LOITRUCK *loiTruck);
 
 
 

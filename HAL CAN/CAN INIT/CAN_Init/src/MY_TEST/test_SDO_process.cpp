@@ -1,23 +1,26 @@
 #include "test_SDO_process.h"
 
-int test_SDO_process(LOITRUCK *loiTruck){    
-    uint32_t DWT_start = 0;
-    uint32_t DWT_stop = 0;
+void test_SDO_process(LOITRUCK *loiTruck){    
+    //uint32_t DWT_start = 0;
+    //uint32_t DWT_stop = 0;
     
     // send a SDO message
-    my_can_write(&loiTruck->my_can, test_SDO[loiTruck->test_SDO_process_count++],0,loiTruck);
-    
+    if (loiTruck->test_SDO_process_count > 11){
+        return;
+    } 
+    my_can_write(&loiTruck->my_can, test_SDO[loiTruck->test_SDO_process_count],0,loiTruck);
+    loiTruck->test_SDO_process_count += 1;
     // Get current DWT CYCCNT
-    DWT->CYCCNT = 0;
-    DWT_start = DWT_get_CYCCNT();
+    //DWT->CYCCNT = 0;
+    //DWT_start = DWT_get_CYCCNT();
     
     // process
-    loiTruck->SDO_process_function();
+    //loiTruck->SDO_process_function();
 
     // Get current DWT CYCCNT
-    DWT_stop = DWT_get_CYCCNT();
+    //DWT_stop = DWT_get_CYCCNT();
        
     
     // calculate time
-    return DWT_stop - DWT_start;
+    //return DWT_stop - DWT_start;
 }

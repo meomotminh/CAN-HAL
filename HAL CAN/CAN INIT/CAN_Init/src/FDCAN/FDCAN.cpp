@@ -83,8 +83,7 @@ void Set_Freq(can_t *obj, const can_pinmap_t *pinmap, int hz)
         PLL1_ClocksTypeDef pll1_clocks;
         HAL_RCCEx_GetPLL1ClockFreq(&pll1_clocks);
         ////Serial.print("Hier Freq:"); //Serial.println(pll1_clocks.PLL1_Q_Frequency);
-        int ntq = pll1_clocks.PLL1_Q_Frequency / hz;  // 320
-
+        int ntq = pll1_clocks.PLL1_Q_Frequency / hz; // 320
     #else
     #if (defined RCC_PERIPHCLK_FDCAN1)
         ////Serial.println("Hier 2");  
@@ -330,28 +329,15 @@ int my_can_write(can_t *obj, CANMessage msg, int cc, LOITRUCK* loiTruck){
     ////Serial.println(loiTruck->TxData[i]);
   }
 
-
-  // check if ignore or delay or send_predefined
-  if ((!loiTruck->ignore) || (loiTruck->fake_heart_beat)){
-    HAL_Delay(loiTruck->delay);
-    
-    if (loiTruck->fake_heart_beat){
-      //HAL_Delay(100);
-    }
-    
-
-    if (HAL_FDCAN_AddMessageToTxFifoQ(&(loiTruck->my_can.CanHandle), &loiTruck->TxHeader, msg.data) != HAL_OK){
+  if (HAL_FDCAN_AddMessageToTxFifoQ(&(loiTruck->my_can.CanHandle), &loiTruck->TxHeader, msg.data) != HAL_OK){
       //Serial.println("Hier error addMessageToTx");
       return 0;
     } else {
       ////Serial.println("Send success!");
     }
         
-    //sprintf(loiTruck->buffer_string[(loiTruck->buffer_count++) % 100],"S:\t%x\t%x\t%x\t%x\t%x\t%x\t%x\t%x\n",loiTruck->TxHeader.Identifier,loiTruck->TxData[0],loiTruck->TxData[1],loiTruck->TxData[2],loiTruck->TxData[3],loiTruck->TxData[4],loiTruck->TxData[5],loiTruck->TxData[6],loiTruck->TxData[7]);
-  }
-
+  //sprintf(loiTruck->buffer_string[(loiTruck->buffer_count++) % 100],"S:\t%x\t%x\t%x\t%x\t%x\t%x\t%x\t%x\t%x\n",loiTruck->TxHeader.Identifier,loiTruck->TxData[0],loiTruck->TxData[1],loiTruck->TxData[2],loiTruck->TxData[3],loiTruck->TxData[4],loiTruck->TxData[5],loiTruck->TxData[6],loiTruck->TxData[7]);
   
-
   return 1;
 }
 

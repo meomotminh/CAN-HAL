@@ -122,7 +122,7 @@ public:
     // do nothing
         uint32_t index = 0;
         uint32_t address = 0;
-        uint32_t COB_ID = 0;
+        uint32_t Object_index = 0;
     
         SDO *next = NULL;
         uint8_t length = 0;
@@ -133,11 +133,11 @@ public:
         bool SDO_default = false;
 
     // Constructor
-    SDO(uint32_t _index, uint32_t _address, uint32_t _COB_ID, struct SDO* _next, uint8_t _length, bool _segmented, uint32_t _to_save, bool _is_default){            
+    SDO(uint32_t _index, uint32_t _address, uint32_t _Object_index, struct SDO* _next, uint8_t _length, bool _segmented, uint32_t _to_save, bool _is_default){            
         //malloc(sizeof(struct SDO));
         index = _index;
         address = _address;
-        COB_ID = _COB_ID; // not value to be saved in SRAM but the 0x20002 value
+        Object_index = _Object_index; // not value to be saved in SRAM but the 0x20002 value
         next = _next;
         length = _length;
         segmented = _segmented;
@@ -146,11 +146,11 @@ public:
     }
 
     // Constructor
-    SDO(uint32_t _index, uint32_t _address, uint32_t _COB_ID, struct SDO* _next, uint8_t _length, bool _segmented, uint32_t _to_save){            
+    SDO(uint32_t _index, uint32_t _address, uint32_t _Object_index, struct SDO* _next, uint8_t _length, bool _segmented, uint32_t _to_save){            
         //malloc(sizeof(struct SDO));
         index = _index;
         address = _address;
-        COB_ID = _COB_ID; // not value to be saved in SRAM but the 0x20002 value
+        Object_index = _Object_index; // not value to be saved in SRAM but the 0x20002 value
         next = _next;
         length = _length;
         segmented = _segmented;
@@ -162,7 +162,7 @@ public:
         // do nothing
         index = 0;
         address = 0;
-        COB_ID = 0;
+        Object_index = 0;
         next = NULL;
         length = 0;
         segmented = false;
@@ -309,192 +309,12 @@ public:
 //#define Truck_ID              "ECE225        2011" // simpler truck
 //#define Truck_ID              "EFGBAUREIHE2_32014" // other truck
 
-typedef uint32_t OD_size_t;
 
-/** Type (and size) of Object Dictionary attribute */
-typedef uint8_t OD_attr_t;
-
-/**
- * Return codes from OD access functions.
- *
- * @ref OD_getSDOabCode() can be used to retrieve corresponding SDO abort code.
- */
-typedef enum {
-/* !!!! WARNING !!!!
- * If changing these values, change also OD_getSDOabCode() function!
- */
-    /** Read/write is only partial, make more calls */
-    ODR_PARTIAL = -1,
-    /** SDO abort 0x00000000 - Read/write successfully finished */
-    ODR_OK = 0,
-    /** SDO abort 0x05040005 - Out of memory */
-    ODR_OUT_OF_MEM = 1,
-    /** SDO abort 0x06010000 - Unsupported access to an object */
-    ODR_UNSUPP_ACCESS = 2,
-    /** SDO abort 0x06010001 - Attempt to read a write only object */
-    ODR_WRITEONLY = 3,
-    /** SDO abort 0x06010002 - Attempt to write a read only object */
-    ODR_READONLY = 4,
-    /** SDO abort 0x06020000 - Object does not exist in the object dict. */
-    ODR_IDX_NOT_EXIST = 5,
-    /** SDO abort 0x06040041 - Object cannot be mapped to the PDO */
-    ODR_NO_MAP = 6,
-    /** SDO abort 0x06040042 - PDO length exceeded */
-    ODR_MAP_LEN = 7,
-    /** SDO abort 0x06040043 - General parameter incompatibility reasons */
-    ODR_PAR_INCOMPAT = 8,
-    /** SDO abort 0x06040047 - General internal incompatibility in device */
-    ODR_DEV_INCOMPAT = 9,
-    /** SDO abort 0x06060000 - Access failed due to hardware error */
-    ODR_HW = 10,
-    /** SDO abort 0x06070010 - Data type does not match */
-    ODR_TYPE_MISMATCH = 11,
-    /** SDO abort 0x06070012 - Data type does not match, length too high */
-    ODR_DATA_LONG = 12,
-    /** SDO abort 0x06070013 - Data type does not match, length too short */
-    ODR_DATA_SHORT = 13,
-    /** SDO abort 0x06090011 - Sub index does not exist */
-    ODR_SUB_NOT_EXIST = 14,
-    /** SDO abort 0x06090030 - Invalid value for parameter (download only) */
-    ODR_INVALID_VALUE = 15,
-    /** SDO abort 0x06090031 - Value range of parameter written too high */
-    ODR_VALUE_HIGH = 16,
-    /** SDO abort 0x06090032 - Value range of parameter written too low */
-    ODR_VALUE_LOW = 17,
-    /** SDO abort 0x06090036 - Maximum value is less than minimum value */
-    ODR_MAX_LESS_MIN = 18,
-    /** SDO abort 0x060A0023 - Resource not available: SDO connection */
-    ODR_NO_RESOURCE = 19,
-    /** SDO abort 0x08000000 - General error */
-    ODR_GENERAL = 20,
-    /** SDO abort 0x08000020 - Data cannot be transferred or stored to app */
-    ODR_DATA_TRANSF = 21,
-    /** SDO abort 0x08000021 - Data can't be transferred (local control) */
-    ODR_DATA_LOC_CTRL = 22,
-    /** SDO abort 0x08000022 - Data can't be transf. (present device state) */
-    ODR_DATA_DEV_STATE = 23,
-    /** SDO abort 0x08000023 - Object dictionary not present */
-    ODR_OD_MISSING = 23,
-    /** SDO abort 0x08000024 - No data available */
-    ODR_NO_DATA = 25,
-    /** Last element, number of responses */
-    ODR_COUNT = 26
-} ODR_t;
-
-/**
- * IO stream structure, used for read/write access to OD variable, part of
- * @ref OD_IO_t.
- */
-typedef struct {
-    /** Pointer to original data object, defined by Object Dictionary. Default
-     * read/write functions operate on it. If memory for data object is not
-     * specified by Object Dictionary, then dataOrig is NULL.
-     */
-    void *dataOrig;
-    /** Pointer to object, passed by @ref OD_extension_init(). Can be used
-     * inside read / write functions from IO extension.
-     */
-    void *object;
-    /** Data length in bytes or 0, if length is not specified */
-    OD_size_t dataLength;
-    /** In case of large data, dataOffset indicates position of already
-     * transferred data */
-    OD_size_t dataOffset;
-    /** Attribute bit-field of the OD sub-object, see @ref OD_attributes_t */
-    OD_attr_t attribute;
-    /** Sub index of the OD sub-object, informative */
-    uint8_t subIndex;
-} OD_stream_t;
-
-typedef struct {
-    // object Dictionary stream object
-    OD_stream_t stream;
-
-    // read function
-    ODR_t (*read)(OD_stream_t *stream, void *buf, OD_size_t count, OD_size_t *countRead);
-
-    // write function
-    ODR_t (*write)(OD_stream_t *stream, const void *buf, OD_size_t count, OD_size_t *countWritten);
-} OD_IO_t;
-
-// return values from SDO server or client functions
-typedef enum {
-    // waiting in client local transfer
-    CO_SDO_RT_waitingLocalTransfer = 6,
-    // data buffer is full. SDO client, data must be read before next upload cycle begin
-    CO_SDO_RT_uploadDataBufferFull = 5,
-    // CAN transmit buffer is full
-    CO_SDO_RT_transmittBufferFull = 4,
-    // Block download is in progress, sending train of messages
-    CO_SDO_RT_blockDownldInProgress = 3,
-    // Block upload is in progress. receiving train of messages
-    CO_SDO_RT_blockUploadInProgress = 2,
-    // Waiting server or client response
-    CO_SDO_RT_waitingResponse = 1,
-    // Success, end of communication
-    CO_SDO_RT_ok_communicationEnd = 0,
-    // Error in arguments
-    CO_SDO_RT_wrongArguments = -2,
-    // Communication ended with client abort
-    CO_SDO_RT_endedWithClientAbort = -9,
-    // Communication ended with server abort
-    CO_SDO_RT_endedWithServerAbort = -10,
-} CO_SDO_return_t;
-
-// SDO server object
-/*
-typedef struct
-{
-    // From CO_SDOserver_init()
-    CO_CANmodule_t *CANdevTx;
-    // CAN transmit buffer inside CANdevTx for CAN tx message
-    CO_CANtx_t *CANtxBuff;
-    // From CO_SDOserver_init()
-    OD_t *OD;
-    // From CO_SDOserver_init()
-    uint8_t nodeId;
-    // if true, SDO channel is valid
-    bool valid;
-    // internal state of SDO server
-    volatile CO_SDO_state_t state;
-    // Object dictionary interface for current object
-    OD_IO_t OD_IO;
-    // index of current object in Object dictionary
-    uint16_t index;
-    // subindex of current object in Object dictionary
-    uint8_t subIndex;
-    // indicate if new SDO message received from CAN bus, not cleared until received msg is completely processed
-    volatile void *CANrxNew;
-    // 8 data bytes of received message
-    uint8_t CANrxData[8];
-
-    // size of data to be transferred
-    OD_size_t sizeInd;
-    // size of data actually transferred
-    OD_size_t sizeTran;
-    // Toggle bit in each segment of segmented transfer
-    uint8_t toggle;
-    // if true, data transfer is finished
-    bool finished;
-    // max timeout time bw request and response
-    uint32_t SDOtimeoutTime_us;
-    // Timeout timer for SDO communication
-    uint32_t timeoutTimer;
-    // interim data buffer for segmented or block transfer + byte for '\0'
-    uint8_t buf[8 + 1];
-    // offset of next free data byte available for write in buffer
-    OD_size_t buffOffsetWr;
-    // offset of first data available for read in buffer
-    OD_size_t bufOffsetRd;
-
-} CO_SDOserver_t;
-*/
 
 typedef enum {
-    CO_SDO_ST_IDLE = 0x00U,
-    CO_SDO_ST_ABORT = 0x01U,    
+    CO_SDO_ST_IDLE = 0x00U,    
 
-    CO_SDO_ST_DOWNLOAD_INITIATE_REQ = 0x11,
+    CO_SDO_ST_DOWNLOAD_INITIATE_REQ = 0x11U,
     CO_SDO_ST_DOWNLOAD_INITIATE_RSP = 0x12U,    
 
     CO_SDO_ST_UPLOAD_INITIATE_REQ = 0x21U,
@@ -611,11 +431,11 @@ public:
     uint8_t SDO_toggle = 0;
     uint8_t segment_remain = 0;
     bool new_SDO_received = false;
-    char buffer_string[100][40];    
+    char buffer_string[100][100];    
     int buffer_count = 0;
     
     bool to_add = false;
-    uint32_t to_add_COB_ID = 0;
+    uint32_t to_add_Object_index = 0;
     uint32_t to_add_value = 0;
 
     CanMode my_can_mode;
@@ -641,12 +461,13 @@ public:
     EXTI_HandleTypeDef hexti;
     EXTI_ConfigTypeDef ExtiConfig;
     bool alarm = false;
+    int DWT_elapse = 0;
 
 /* -------------------------------- FOR TIMER ------------------------------- */
     TIM_HandleTypeDef htimer6;
     bool timer6 = false;
     uint32_t passed_time_s = 0;
-
+    
 /* ------------------------------- FOR TESTING ------------------------------ */
     bool Rx_Fifo0_full = false;
     bool receiveMsg = false;
@@ -661,9 +482,9 @@ public:
     //uint16_t test_worst_case[100];
     int test_worst_case_count = 0;
     int test_SDO_process_count = 0;
-    //uint32_t DWT_start = 0;
+    uint32_t DWT_start = 0;
     uint32_t DWT_stop = 0;
-    int sine_rad = 0;
+    float sine_t = 0;
 
 /* ------------------------------ FOR SEGMENTED ----------------------------- */
     uint8_t segment_count = 0;
@@ -704,7 +525,7 @@ public:
     struct SDO* find_value(struct SDO** head_ref, uint32_t value);
     bool compare_with_expect();
     //void append_Linked_List(struct SDO** head_ref, struct SDO* temp_node);                                    
-    void append_Linked_List(struct SDO** head_ref, uint32_t _COB_ID, uint32_t value);
+    void append_Linked_List(struct SDO** head_ref, uint32_t _Object_index, uint32_t value);
     void display_Linked_List();
     void init_SDO_list();
 };

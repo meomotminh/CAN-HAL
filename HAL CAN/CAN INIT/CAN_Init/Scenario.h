@@ -32,6 +32,11 @@ static CANMessage fault[12] = {
                     CANMessage(0x641,test_scenario_5,8),//11 SDO 240401                    
 };
 
+const uint8_t wrong_request_bytes[] = {0x40, 0x2, 0x20, 0x1 ,0 ,0 ,0 ,0};
+const uint8_t wrong_reply_bytes[] = {0x40, 0x3, 0x20, 0x1 ,0 ,0 ,0 ,0};
+static CANMessage wrong_request = CANMessage(0x641, wrong_request_bytes,8);
+static CANMessage wrong_reply = CANMessage(0x581, wrong_reply_bytes, 8);
+
 
 enum OUTPUT_TYPE {
     OUT_TIME_STAMP,  // delay: 0
@@ -60,11 +65,17 @@ public:
       _sin = sin;      
     }
 
-    uint32_t output(int val){
+    int output(float n){
       if (this->_sin){
-        return (sin(val*3*2)+1)*1000;
+        //float f = 0.25; // T = 4s
+        //float f = 1; // T = 1s
+        float f = 4; // T = 0.25s
+        int temp = int((sin(2*M_PI*f*n)*4000)); 
+        return temp;               
+        //return ((temp>>24) & 0xFF) | ((temp<<8) & 0xFF0000) | ((temp>>8) & 0xFF00) | ((temp<<24) & 0xFF000000);
       } else {
-        return int(_a*_a*_a*val + _b*_b*val + _c*val +_d);
+        int temp = int(_a*_a*_a*n + _b*_b*n + _c*n +_d);        
+        return ((temp>>24) & 0xFF) | ((temp<<8) & 0xFF0000) | ((temp>>8) & 0xFF00) | ((temp<<24) & 0xFF000000);
       }
       
     }
@@ -105,7 +116,7 @@ public:
 };
 
 
-static My_Function function_sinc(0.0, 0.0, 0, 0, 0x400001, true);
+static My_Function function_sin(0.0, 0.0, 0, 0, 0x400001, true);
 
 static My_Function function_linear_2(0.0, 0.0, -2.0, 40.0, 0x400001, false);
 
@@ -132,6 +143,9 @@ static My_Function function_linear_1(0.0, 0.0, 1.0, 1.0, 0x400001, false);
 
 
 // --------------test scenario 1-------------
+//static Scenario Scenario_1(OUT_RESET, NULL, 0, NULL, 0, NULL, NULL);
+
+
 //static Scenario Scenario_4(OUT_RESET, &fault[0], 20, NULL, 0, nullptr, nullptr);
 
 //static Scenario Scenario_3(OUT_IGNORE, &fault[0], 15, NULL, 0, nullptr, &Scenario_4);
@@ -142,7 +156,21 @@ static My_Function function_linear_1(0.0, 0.0, 1.0, 1.0, 0x400001, false);
 
 
 // --------------test scenario function-----------
-static Scenario Scenario_1(OUT_FUNCTION, nullptr, 5, NULL, 0, &function_sinc, nullptr);
+//static Scenario Scenario_1(OUT_FUNCTION, nullptr, 5, NULL, 0, &function_sinc, nullptr);
+
+// SCENARIO 4
+static Scenario Scenario_1(OUT_CAN_MESSAGE, &wrong_request, 0, &wrong_reply, 0, NULL, NULL);
 
 
+// SCENARIO 3
+//static Scenario Scenario_3(OUT_IGNORE, &fault[0], 0, NULL, 0, NULL, NULL);
+
+// SCENARIO TEST 2
+//static Scenario Scenario_1(OUT_TIME_STAMP, &fault[0], 0, NULL, 300, NULL, NULL);
+
+
+// SCENARIO TEST 1
+//static Scenario Scenario_1(OUT_FUNCTION, NULL, 5, NULL, 0, &function_sin, NULL);
+
+//static Scenario Scenario_1(OUT_CAN_MESSAGE, &wrong_request, 5, &wrong_reply, 0, nullptr, nullptr);
 #endif

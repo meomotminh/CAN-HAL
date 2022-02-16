@@ -99,33 +99,35 @@ void LOITRUCK::SDO_process_function(){
     
     if (this->state != CO_SDO_ST_IDLE){
       return;
-    }
+    } 
         
+
+    //Serial.println("COme hiere !");
 
     // get current DWT cycle
     
     //if (this->tool_state == TOOL_DELAY){
-      DWT->CYCCNT = 0;
+    this->DWT_start = DWT->CYCCNT;
       //this->DWT_start = DWT->CYCCNT;
     //}
     
-    
+    //sprintf(this->buffer_string[(this->buffer_count++) % 100],"Come hier");
     
 
     // hang until copy received data into local object
-    if (HAL_FDCAN_GetRxMessage(&this->my_can.CanHandle, FDCAN_RX_FIFO0, &this->RxHeader, this->RxData) != HAL_OK){      
+    while (HAL_FDCAN_GetRxMessage(&this->my_can.CanHandle, FDCAN_RX_FIFO0, &this->RxHeader, this->RxData) != HAL_OK){      
     }
     
     
-    sprintf(this->buffer_string[(this->buffer_count++) % 100],"R:\t%x\t%x\t%x\t%x\t%x\t%x\t%x\t%x\n",this->RxHeader.Identifier,this->RxData[0],this->RxData[1],this->RxData[2],this->RxData[3],this->RxData[4],this->RxData[5],this->RxData[6],this->RxData[7]);
+    sprintf(this->buffer_string[(this->buffer_count++) % 100],"%d(s):%d(cyc)\tR:\t%x\t%x\t%x\t%x\t%x\t%x\t%x\t%x\t%x\n",this->passed_time_s, this->DWT_start,this->RxHeader.Identifier,this->RxData[0],this->RxData[1],this->RxData[2],this->RxData[3],this->RxData[4],this->RxData[5],this->RxData[6],this->RxData[7]);
     
         
-    // process command_ID and COB_ID    
+    // process command_ID and Object_index    
     bool upload = false;    
-    uint32_t COB_ID = (this->RxData[2] << 16) | (this->RxData[1] << 8) | this->RxData[3];
-    //String COB_ID_str = String(COB_ID);
-    //int COB_ID_int = COB_ID_str.toInt();
-    uint32_t received_value = (this->RxData[4] << 16) | (this->RxData[5] << 8) | this->RxData[6];
+    uint32_t Object_index = (this->RxData[2] << 16) | (this->RxData[1] << 8) | this->RxData[3];
+    //String Object_index_str = String(Object_index);
+    //int Object_index_int = Object_index_str.toInt();
+    uint32_t received_value = (this->RxData[4] << 24) | (this->RxData[5] << 16) | (this->RxData[6] << 8) | (this->RxData[7]);
 
     
     //sprintf(this->buffer_string[this->buffer_count++],"RxData[0]: %x\n",RxData[0]);
@@ -140,13 +142,17 @@ void LOITRUCK::SDO_process_function(){
         this->state = CO_SDO_ST_DOWNLOAD_INITIATE_REQ;
     } else if (this->RxData[0] == 0x60 || this->RxData[0] == 0x70){
         if (this->segment_remain == 0){
+          this->state = CO_SDO_ST_IDLE;
           return;
         } 
         this->state = CO_SDO_ST_UPLOAD_SEGMENT_REQ;
+    } else {
+      this->state = CO_SDO_ST_IDLE;
+      return;
     }
     
     // find in CANopen Object Dictionary   
-    switch (COB_ID)
+    switch (Object_index)
     {
     case 0x200000:
       this->found_SDO = &res_2000_00;
@@ -316,7 +322,7 @@ void LOITRUCK::SDO_process_function(){
     case 0x200204: // segmented
       {
         
-        this->found_SDO = this->find_value(&this->my_SDO_List, COB_ID);
+        this->found_SDO = &first_SDO;
         //Serial.print("Hier_");Serial.println(this->found_SDO->segmented_string);        
         break;
       }
@@ -324,20 +330,17 @@ void LOITRUCK::SDO_process_function(){
     default:
     {      
       
-      this->found_SDO = this->find_value(&this->my_SDO_List, COB_ID);
+      this->found_SDO = this->find_value(&this->my_SDO_List, Object_index);
       //sprintf(this->buffer_string[(this->buffer_count++)%100],"found null\n");
       if (this->found_SDO == NULL){
         // create SDO object and add to linked list        
-        this->to_add_COB_ID = COB_ID;
+        this->to_add_Object_index = Object_index;
         this->to_add_value = received_value;
         this->to_add = true;
-        //this->append_Linked_List(&this->my_SDO_List, COB_ID,received_value);
-        //this->found_SDO = this->find_value(&this->my_SDO_List, COB_ID);
-        //sprintf(this->buffer_string[(this->buffer_count++)%100],"found %d\n",this->found_SDO->COB_ID);
-      } else {
- 
-      }
-      
+        this->append_Linked_List(&this->my_SDO_List, Object_index,received_value);
+        this->found_SDO = this->find_value(&this->my_SDO_List, Object_index);
+        //sprintf(this->buffer_string[(this->buffer_count++)%100],"found %x:%x\n",this->found_SDO->Object_index, this->found_SDO->to_save);
+      }       
       break;
     }
       
@@ -357,7 +360,9 @@ void LOITRUCK::SDO_process_function(){
           if (this->found_SDO != NULL){
             if (this->found_SDO->SDO_default){
               *(__IO uint32_t *)(this->found_SDO->address) = received_value;              
-            } 
+            } else {
+              this->found_SDO->to_save = received_value;
+            }
           }
                                         
           this->Download_function();        
@@ -368,15 +373,15 @@ void LOITRUCK::SDO_process_function(){
         {
           this->state = CO_SDO_ST_UPLOAD_INITIATE_RSP;
           if (this->found_SDO->segmented){
-                        
-            if (this->state != CO_SDO_ST_UPLOAD_INITIATE_RSP){                     
-              this->segment_remain = 5;       
-            }             
+            this->segment_remain = 5;             
             
             this->Upload_segmented_function();
           } else {                        
+            
             this->Upload_expedited_function();
           }
+
+          
           break;
         }
 
@@ -387,6 +392,7 @@ void LOITRUCK::SDO_process_function(){
           break;
         }    
     default:
+        return;
         break; 
         
         
@@ -411,7 +417,7 @@ void LOITRUCK::Download_function(){
 }
 
 /* --------------------- Append 1 node into linked list --------------------- */
-void LOITRUCK::append_Linked_List(struct SDO** head_ref, uint32_t _COB_ID, uint32_t value){
+void LOITRUCK::append_Linked_List(struct SDO** head_ref, uint32_t _Object_index, uint32_t value){
   
   
   //SDO new_node = (struct SDO) malloc(sizeof(struct SDO));
@@ -426,16 +432,15 @@ void LOITRUCK::append_Linked_List(struct SDO** head_ref, uint32_t _COB_ID, uint3
   }
   
   
-  new_node->COB_ID = _COB_ID;
+  new_node->Object_index = _Object_index;
   new_node->to_save = value;
-  /*
+  
   new_node->address = 0;  
   new_node->SDO_default = false;
   new_node->segmented = false;
   new_node->next = NULL;
-  new_node->length = 4;
-  */
-  //new_node->segmented_string = "";
+  new_node->length = 4;  
+  new_node->segmented_string = "";
 
   
 
@@ -464,15 +469,17 @@ void LOITRUCK::Upload_expedited_function(){
     if (this->found_SDO->SDO_default){
     
       to_send = *(__IO uint32_t *)(this->found_SDO->address); 
-      this->TxData[4] = to_send >> 16;
-      this->TxData[5] = to_send >> 8;
-      this->TxData[6] = to_send;
+      this->TxData[4] = to_send >> 24;
+      this->TxData[5] = to_send >> 16;
+      this->TxData[6] = to_send >> 8;
+      this->TxData[7] = to_send;
     
     } else {
     
-      this->TxData[4] = this->found_SDO->to_save >> 16;
-      this->TxData[5] = this->found_SDO->to_save >> 8;
-      this->TxData[6] = this->found_SDO->to_save;
+      this->TxData[4] = this->found_SDO->to_save >> 24;
+      this->TxData[5] = this->found_SDO->to_save >> 16;
+      this->TxData[6] = this->found_SDO->to_save >> 8;
+      this->TxData[7] = this->found_SDO->to_save;
     
     }
   }
@@ -539,8 +546,7 @@ void LOITRUCK::CAN_send(){
   
   this->TxHeader.Identifier = this->prepare_ID();
 
-  // create a CANMessage for comparison
-  //this->msg_to_send = CANMessage(this->TxHeader.Identifier, this->TxData,8);
+ 
 
   // check if ignore or delay or send_predefined
   if ((this->tool_state == TOOL_IGNORE) && (CANMessage(this->RxHeader.Identifier, this->RxData, 8) == *(this->current_Scenario->_input_CAN_message))){
@@ -558,41 +564,46 @@ void LOITRUCK::CAN_send(){
         sprintf(this->buffer_string[(this->buffer_count++)%100],"Matched input Message\n");
         this->TxHeader.Identifier = this->current_Scenario->_output_CAN_message->id;
         this->TxHeader.DataLength = this->current_Scenario->_output_CAN_message->len;
-        memcpy(this->current_Scenario->_output_CAN_message->data, this->TxData, this->current_Scenario->_output_CAN_message->len);      
+        memcpy(this->TxData, this->current_Scenario->_output_CAN_message->data, this->current_Scenario->_output_CAN_message->len);      
       }       
     } 
-        
-    if (HAL_FDCAN_AddMessageToTxFifoQ(&(this->my_can.CanHandle), &this->TxHeader, this->TxData) != HAL_OK){      
-    
-    }
 
-    sprintf(this->buffer_string[(this->buffer_count++) % 100],"P:\t%x\t%x\t%x\t%x\t%x\t%x\t%x\t%x\n",this->TxHeader.Identifier,this->TxData[0],this->TxData[1],this->TxData[2],this->TxData[3],this->TxData[4],this->TxData[5],this->TxData[6],this->TxData[7]); 
+    if (this->my_can_mode == MODE_NORMAL){
+      if (HAL_FDCAN_AddMessageToTxFifoQ(&(this->my_can.CanHandle), &this->TxHeader, this->TxData) != HAL_OK){      
+    
+      }
+    }    
+    
+    this->DWT_stop = DWT->CYCCNT;
+    sprintf(this->buffer_string[(this->buffer_count++) % 100],"%d(s):%d(cyc)\tP:\t%x\t%x\t%x\t%x\t%x\t%x\t%x\t%x\t%x\n",this->passed_time_s,this->DWT_stop,this->TxHeader.Identifier,this->TxData[0],this->TxData[1],this->TxData[2],this->TxData[3],this->TxData[4],this->TxData[5],this->TxData[6],this->TxData[7]); 
 
   }
     
     // reset state
-    this->state = CO_SDO_ST_IDLE;
+    this->state = CO_SDO_ST_IDLE;    
                   
+    if (this->my_can_mode != MODE_NORMAL){            
+      sprintf(this->buffer_string[(this->buffer_count++) % 100],"%d(s):%d(cyc)\tE:\t%x\t%x\t%x\t%x\t%x\t%x\t%x\t%x\t%x\n",this->passed_time_s,this->DWT_stop,expect_SDO[this->test_SDO_process_count-1].id,expect_SDO[this->test_SDO_process_count-1].data[0],expect_SDO[this->test_SDO_process_count-1].data[1],expect_SDO[this->test_SDO_process_count-1].data[2],expect_SDO[this->test_SDO_process_count-1].data[3],expect_SDO[this->test_SDO_process_count-1].data[4],expect_SDO[this->test_SDO_process_count-1].data[5],expect_SDO[this->test_SDO_process_count-1].data[6],expect_SDO[this->test_SDO_process_count-1].data[7]);              
+    }
+    
     // Get current DWT CYCCNT      
-    sprintf(this->buffer_string[(this->buffer_count++) % 100],"\tConsumed Cycle:%d\n",DWT->CYCCNT);
+    sprintf(this->buffer_string[(this->buffer_count++) % 100],"\t\t\tConsumed Cycle:%d\n",this->DWT_stop - this->DWT_start);
     
-    
-    //sprintf(this->buffer_string[(this->buffer_count++) % 100],"E:\t%x\t%x\t%x\t%x\t%x\t%x\t%x\t%x\n",expect_SDO[this->test_SDO_process_count-1].id,expect_SDO[this->test_SDO_process_count-1].data[0],expect_SDO[this->test_SDO_process_count-1].data[1],expect_SDO[this->test_SDO_process_count-1].data[2],expect_SDO[this->test_SDO_process_count-1].data[3],expect_SDO[this->test_SDO_process_count-1].data[4],expect_SDO[this->test_SDO_process_count-1].data[5],expect_SDO[this->test_SDO_process_count-1].data[6],expect_SDO[this->test_SDO_process_count-1].data[7]);  
     
     // clear last sent message
     if (this->my_can_mode != MODE_NORMAL){
-      if (HAL_FDCAN_GetRxMessage(&this->my_can.CanHandle, FDCAN_RX_FIFO0, &this->RxHeader, this->RxData) != HAL_OK){
-       
-      }
+      
+      // create a CANMessage for comparison
+      this->msg_to_send = CANMessage(this->TxHeader.Identifier, this->TxData,8);
+            
+      if (this->compare_with_expect()){
+      sprintf(this->buffer_string[(this->buffer_count++) % 100],"\tPASSED\n");
+      } else {
+      sprintf(this->buffer_string[(this->buffer_count++) % 100],"\tFAILED\n");
+      }    
     }
-    /*
-    if (this->compare_with_expect()){
-      sprintf(this->buffer_string[(this->buffer_count++) % 100],"PASSED\n");
-    } else {
-      sprintf(this->buffer_string[(this->buffer_count++) % 100],"FAILED\n");
-    }  
-    */       
-  
+           
+    
     
  
 }
@@ -607,16 +618,16 @@ struct SDO* LOITRUCK::find_value(struct SDO** head_ref, uint32_t value){
     
   // traverse until the end
   while (last->next != NULL){
-    if (last->COB_ID == value) 
+    if (last->Object_index == value) 
       { 
         break;
       } else {
         last = last->next;    
-        //Serial.println(last->COB_ID,HEX);
+        //Serial.println(last->Object_index,HEX);
       }    
   }
 
-  if (last->COB_ID == value){
+  if (last->Object_index == value){
     return last;
   } else {
     return NULL;
@@ -624,7 +635,7 @@ struct SDO* LOITRUCK::find_value(struct SDO** head_ref, uint32_t value){
 }
 
 bool LOITRUCK::compare_with_expect(){
-  return this->msg_to_send == expect_SDO[this->test_SDO_process_count - 1];
+  return this->msg_to_send == expect_SDO[this->test_SDO_process_count-1];
 }
 
 void LOITRUCK::display_Linked_List(){
@@ -639,7 +650,7 @@ void LOITRUCK::display_Linked_List(){
       Serial.println("****************");
       Serial.print("SDO index:"); Serial.println(tmp->index);
       Serial.print("SDO address:"); Serial.println(tmp->address, HEX);
-      Serial.print("SDO COB_ID:"); Serial.println(tmp->COB_ID, HEX);
+      Serial.print("SDO Object_index:"); Serial.println(tmp->Object_index, HEX);
       Serial.print("segmented_string:"); Serial.println(tmp->segmented_string);
       tmp = tmp->next;
     }
@@ -706,9 +717,9 @@ void LOITRUCK::State_process_function(){
 
     }
   } else {
-  #ifdef Scenario_1
+  
     this->current_Scenario = &Scenario_1;
-  #endif
+  
   }
 
   if (this->passed_time_s >= this->current_Scenario->_start_time){
